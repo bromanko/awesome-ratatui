@@ -116,21 +116,8 @@ def main(stage):
             for evaluation in bundle['evaluations'].values():
                 evaluation.update(ready=False, note='Catalog freshness changed or could not be verified before export.')
         ci.write_report(bundle['catalog'],bundle['assessment'],bundle['status'],output,
-                        prepared=(bundle['proposals'],bundle['note']),evaluations=bundle['evaluations'])
+                        prepared=(bundle['proposals'],bundle['note']),evaluations=bundle['evaluations'],progress=progress)
         (output/'baseline.json').write_text(json.dumps(baseline, indent=2)+'\n')
-        data = bundle['catalog']
-        summary = ('\n\n## Change detection\n\n'
-                   f"Scanned: {len(data['scannedEntries'])}. Unchanged: {len(data['unchangedEntries'])}. "
-                   f"Selected for research: {len(data['entries'])}. Fetch failures: {len(data['pendingEntries'])}.\n\n"
-                   f"New completed baseline reviews: {len(progress['resolved'])}. "
-                   f"Pending in this slice: {len(progress['pending'])}.\n\n"
-                   'The baseline.json artifact is a proposed replacement for .um/freshness/baseline.json. '
-                   'Review and commit it to persist coverage. Unresolved findings are not marked reviewed.\n')
-        if progress['pending']:
-            import html
-            summary += '\nPending: <pre>'+html.escape(', '.join(progress['pending']))+'</pre>\n'
-        with (output/'report.md').open('a') as report:
-            report.write(summary)
         if bundle.get('historyUsage'):
             (output/'history-model-receipt.json').write_text(json.dumps(bundle['historyUsage'], indent=2)+'\n')
         for name, content in bundle['logs'].items():

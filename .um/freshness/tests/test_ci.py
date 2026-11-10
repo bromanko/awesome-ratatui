@@ -125,7 +125,10 @@ class PreviewTests(unittest.TestCase):
             (output/'entry-2.patch').write_text('old stale proposal')
             ci.write_report(self.data,self.raw,'unchanged',output,demo=True)
             self.assertFalse((output/'entry-2.patch').exists())
-            self.assertIn('Held',(output/'report.md').read_text())
+            report = (output/'report.md').read_text()
+            self.assertIn('Held', report)
+            self.assertIn('<summary>Show held diff</summary>', report)
+            self.assertIn('History check not performed.', report)
 
     def test_ready_preview_exports_checked_patch(self):
         import tempfile
@@ -142,7 +145,11 @@ class PreviewTests(unittest.TestCase):
             ci.write_report(self.data,self.raw,'unchanged',output,demo=True,
                             prepared=(proposals,note),evaluations=evaluated)
             self.assertTrue((output/'entry-2.patch').exists())
-            self.assertIn('Ready for maintainer review',(output/'report.md').read_text())
+            report = (output/'report.md').read_text()
+            self.assertIn('Ready for maintainer review', report)
+            self.assertLess(report.index('```diff'), report.index('<summary>Evidence and checks'))
+            self.assertNotIn('<summary>Show held diff</summary>', report)
+            self.assertTrue((output/'entry-2.checks.json').exists())
 
 
 if __name__ == '__main__': unittest.main()

@@ -96,6 +96,9 @@ displays the successful report and uploads the ZIP. It does not orchestrate rese
 
 ## Outputs and safety of proposals
 
+The Actions summary leads with outcome counts and checked diffs. Held changes show
+their reason, with their diff collapsed. Evidence, baseline instructions and full
+research are expandable; raw check records remain in the downloaded artifacts.
 Each researched entry includes evidence, blockers, caveats and a recommendation.
 The report also shows scanned, unchanged, researched and pending counts. The ZIP
 contains the report, proposed baseline, available correction patches, discussion

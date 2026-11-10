@@ -215,36 +215,77 @@ def evaluate_proposals(data, proposals, history_packet, history_review, validato
     return results
 
 
-def write_report(data, raw, status, output, demo=False, prepared=None, evaluations=None):
-    report = render(data, raw, status)
+def write_report(data, raw, status, output, demo=False, prepared=None, evaluations=None, progress=None):
+    results = validate(data, raw)
     proposals, note = prepared if prepared is not None else previews(data, raw, status)
+    evaluations = evaluations or {}
+    names = {entry['id']: entry['name'] for entry in data['entries']}
+    assessments = {row['id']: row for row in results}
+    proposed_ids = {p['id'] for p in proposals}
+    attention = [r for r in results if r['id'] not in proposed_ids and
+                 (r['action'] != 'keep' or r['blockers'])]
+    ready_count = sum(bool(evaluations.get(p['id'], {}).get('ready')) for p in proposals)
+    held_count = len(proposals) - ready_count + len(attention)
+    report = '# Catalog review\n\n'
     if demo:
-        report = '# Example preview — synthetic test data\n\nNot a live finding or a proposed change to the real catalog.\n\n' + report
-    report += '\n\n# Proposed pull requests\n\n' + note + '\n'
+        report += '**Example preview — synthetic test data.**\n\n'
+    report += f'**{ready_count} ready for review · {held_count} held**\n\n'
+    if 'scannedEntries' in data:
+        report += (f"{len(data['scannedEntries'])} checked · {len(data['unchangedEntries'])} unchanged · "
+                   f"{len(data['entries'])} researched · {len(data['pendingEntries'])} source checks unavailable\n\n")
+    if status != 'unchanged':
+        report += '**Catalog recheck needs attention:** <span>' + html.escape(status) + '</span>\n\n'
+    if not proposals and not attention:
+        report += 'No catalog changes proposed.\n\n'
     output.mkdir(parents=True, exist_ok=True)
     # Clear previous proposals so retries cannot publish obsolete artifacts.
     for old in output.glob('entry-*.*'):
         old.unlink()
     for original in proposals:
         proposal = dict(original)
-        result = (evaluations or {}).get(proposal['id'], dict(ready=False, note='History check not performed.',
+        result = evaluations.get(proposal['id'], dict(ready=False, note='History check not performed.',
                        history=None, assessment=None, validation=dict(passed=False,reason='Checks not performed.')))
         ready, history_note = result['ready'], result['note']
-        candidate, validation = result['history'], result['validation']
-        (output / ('entry-' + proposal['id'] + '.checks.json')).write_text(json.dumps(result,indent=2)+'\n')
+        validation = result['validation']
+        stem = 'entry-' + proposal['id']
+        (output / (stem + '.checks.json')).write_text(json.dumps(result,indent=2)+'\n')
         proposal['body'] += ('\nReview status: ' + ('Ready for maintainer review' if ready else 'Held') +
                              '\nPrior discussion: ' + history_note + '\nValidation: ' + validation['reason'] + '\n')
-        report += '\n### ' + ('Ready for maintainer review' if ready else 'Held') + '\n'
-        report += '<pre>' + html.escape(history_note + '\n' + json.dumps(validation,indent=2)) + '</pre>\n'
-        if candidate:
-            report += '<pre>' + html.escape('Searches:\n' + '\n'.join(candidate['queries']) +
-                        '\nReferences:\n' + '\n'.join((result['assessment'] or {}).get('references',[]))) + '</pre>\n'
-        stem = 'entry-' + proposal['id']
         if ready:
             (output / (stem + '.patch')).write_text(proposal['patch'])
         (output / (stem + '.md')).write_text('# ' + proposal['title'] + '\n\n' + proposal['body'])
-        report += ('\n## ' + stem + '\n\n<pre>' + html.escape(proposal['title'] + '\n\n' + proposal['body']) + '</pre>\n\n')
+        report += '<h2>' + html.escape(names[proposal['id']]) + (' — Ready for maintainer review' if ready else ' — Held') + '</h2>\n\n'
+        if not ready:
+            reasons = list(dict.fromkeys([history_note, validation['reason']]))
+            report += '<p>' + html.escape(' '.join(reasons)) + '</p>\n\n'
         # A fence longer than any run of backticks keeps all patch text literal.
         fence = '`' * max(3, 1 + max([len(x) for x in re.findall(r'`+', proposal['patch'])] or [0]))
-        report += fence + 'diff\n' + proposal['patch'] + fence + '\n'
+        diff = fence + 'diff\n' + proposal['patch'] + fence + '\n'
+        if ready:
+            report += diff
+        else:
+            report += '<details>\n<summary>Show held diff</summary>\n\n' + diff + '\n</details>\n'
+        row = assessments[proposal['id']]
+        report += '\n<details>\n<summary>Evidence and checks</summary>\n\n<p>' + html.escape(row['reason']) + '</p>\n\n'
+        for source in row['evidence']:
+            report += '<p>' + html.escape(source['url'] + ' — ' + source['observation']) + '</p>\n\n'
+        if row['limitations']:
+            report += '<p>Caveats: ' + html.escape('; '.join(row['limitations'])) + '</p>\n\n'
+        report += '<p>' + html.escape(history_note + ' ' + validation['reason']) + '</p>\n\n</details>\n\n'
+    if attention:
+        report += '## Needs attention\n\n'
+        for row in attention:
+            report += '<p><strong>' + html.escape(names[row['id']]) + '</strong>: ' + html.escape(
+                '; '.join(row['blockers']) or row['reason']) + '</p>\n\n'
+    if data.get('pendingEntries'):
+        report += ('<details>\n<summary>Unavailable source checks</summary>\n\n<p>' +
+                   html.escape(', '.join(e['name'] for e in data['pendingEntries'])) + '</p>\n\n</details>\n\n')
+    if progress is not None:
+        report += ('<details>\n<summary>Saved review baseline</summary>\n\n' +
+                   f"{len(progress['resolved'])} new completed reviews · {len(progress['pending'])} pending.\n\n" +
+                   'To retain completed reviews, review and commit the bundled `baseline.json` as '
+                   '`.um/freshness/baseline.json`.\n\n</details>\n\n')
+    report += ('<details>\n<summary>Full research and run details</summary>\n\n' +
+               render(data, raw, status) + '\n\n</details>\n\n')
+    report += 'Proposals only; no catalog edits or PRs submitted. Full records and checked patches are in the run artifacts.\n'
     (output / 'report.md').write_text(report)
