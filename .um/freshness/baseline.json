@@ -1,0 +1,186 @@
+{
+  "entries": {
+    "8d89b2be0385290c29af13ea4cd726fa957a80172f69a7116c6da83c86a4e7b6": {
+      "name": "dumo",
+      "url": "https://github.com/iddey/dumo",
+      "section": "\ud83c\udfd7\ufe0f Frameworks",
+      "claim": "12ce81b5c50013fd7c32dda0c13d5f645be7f98c731c20527f9989dfb15055dd",
+      "snapshot": {
+        "complete": true,
+        "fingerprint": "57af96872f8be4bcfcb2d6fdf136b994682473c620a582255e5589dcc0ee49a4",
+        "source": {
+          "archived": false,
+          "defaultBranch": "main",
+          "description": "An embedded-graphics backend for Ratatui with an adjustable font size",
+          "files": {
+            "Cargo.toml": "bb3131232f8cc5a0660636c55c6dfc350c9137c8",
+            "README.md": "6bd2908afbdd3a0d07a865722400c502f723ad3d",
+            "examples/README.md": "7b6e7e17df26377f9b7d47ea89fe51b0773f5f24",
+            "examples/apps/Cargo.toml": "530dcbc84d24131abfffada2facfa4e31b51e365",
+            "examples/apps/esp32s3/Cargo.toml": "28b637d859d3287347c209e43d38fb2d20c5309c",
+            "examples/apps/esp32s3/README.md": "e54ec466f88d7008d41b5c569bb2275297c37fe8",
+            "examples/apps/rp2350a/Cargo.toml": "3c5bc61ac7d35edd36fe36e648682eb1c11e1099",
+            "examples/apps/rp2350a/README.md": "7859dffc394e96724481e72e5379d47add68748e"
+          },
+          "kind": "github",
+          "repository": "iddey/dumo"
+        }
+      },
+      "reviewedAt": "2026-11-10T15:57:42.256058+00:00",
+      "assessment": {
+        "action": "keep",
+        "blockers": [],
+        "evidence": [
+          {
+            "observation": "full_name iddey/dumo, archived false, default branch main, last pushed 2026-03-31. Repository description: \"An embedded-graphics backend for Ratatui with an adjustable font size\".",
+            "url": "https://api.github.com/repos/iddey/dumo"
+          },
+          {
+            "observation": "Package dumo 0.1.1 depends on ratatui-core 0.1.0, embedded-graphics 0.8.2 and mplusfonts 0.3.4, with ratatui 0.30 as a dev-dependency. The `font-kanji` feature \"Adds 5 553 Unicode code points, the kanji characters\", and the `alt-jis2004` feature renders kanji with JIS X 0213:2004 glyphs.",
+            "url": "https://raw.githubusercontent.com/iddey/dumo/main/Cargo.toml"
+          },
+          {
+            "observation": "README describes dumo as an \"embedded-graphics backend for ratatui v0.30.0 'Bryndza' built on the ratatui-core crate\" and says it contains preconfigured mplusfonts bitmap fonts. It shows Ratatui Tabs, List and Calendar widgets running on small displays and e-paper.",
+            "url": "https://raw.githubusercontent.com/iddey/dumo/main/README.md"
+          }
+        ],
+        "id": "63",
+        "limitations": [
+          "Did not build or run the crate or its examples (esp32s3, rp2350a)."
+        ],
+        "newDescription": null,
+        "newName": null,
+        "newUrl": null,
+        "reason": "Verified that iddey/dumo is the canonical repository and is not archived. It is an embedded-graphics backend for Ratatui 0.30, built on ratatui-core, and it depends on mplusfonts. Kanji support exists through the `font-kanji` feature, which adds 5,553 code points. Every claim in the current description checks out. The upstream tagline now stresses \"adjustable font size\", but the existing wording is still accurate."
+      }
+    },
+    "a5d1626b0ab3e24c39881889f56b8017b835bc8dcf2f573bdf89f6cab2352317": {
+      "name": "egui-ratatui",
+      "url": "https://github.com/gold-silver-copper/egui_ratatui",
+      "section": "\ud83c\udfd7\ufe0f Frameworks",
+      "claim": "77c4abc2218a76c11ecea99b3575980ee27df7ccb88caad9cb1e171800208f9a",
+      "snapshot": {
+        "complete": true,
+        "fingerprint": "27be32f3d105d2571515b415d8c861a4d95546d520d05d2aa08aba516215b8d8",
+        "source": {
+          "archived": false,
+          "defaultBranch": "update",
+          "description": "A ratatui backend that is also an egui widget. Deploy on web with WASM or ship natively with bevy, macroquad, or eframe",
+          "files": {
+            "Cargo.toml": "aa783988d126ce897c465193bf55488fbccf3363",
+            "README.md": "6b476ef7a409afb9ee8d1fa20ac06325f5900d02",
+            "bevy_example/Cargo.toml": "186a36c4942500326b7646311fe4e2d77ee7e279",
+            "eframe_example/Cargo.toml": "7a72fa937d86d790e5728a2fc3555a9cd94a2c84"
+          },
+          "kind": "github",
+          "repository": "gold-silver-copper/egui_ratatui"
+        }
+      },
+      "reviewedAt": "2026-11-10T15:57:42.977632+00:00",
+      "assessment": {
+        "action": "keep",
+        "blockers": [],
+        "evidence": [
+          {
+            "observation": "full_name gold-silver-copper/egui_ratatui, archived false, default_branch update, last pushed 2026-04-16. Description: \"A ratatui backend that is also an egui widget. Deploy on web with WASM or ship natively with bevy, macroquad, or eframe\".",
+            "url": "https://api.github.com/repos/gold-silver-copper/egui_ratatui"
+          },
+          {
+            "observation": "egui_ratatui 2.2.0 depends on ratatui-core 0.1, egui ~0.34 and soft_ratatui ~0.2, with crate-type cdylib/rlib. The workspace members are \".\", bevy_example and eframe_example, and the workspace dependency is ratatui 0.30.",
+            "url": "https://raw.githubusercontent.com/gold-silver-copper/egui_ratatui/update/Cargo.toml"
+          },
+          {
+            "observation": "README says `RataguiBackend` is a combined ratatui Backend and egui Widget, describes it as \"WASM compatible: run your ratatui apps in the browser via egui\", and links Bevy, Macroquad and eframe WASM guides.",
+            "url": "https://raw.githubusercontent.com/gold-silver-copper/egui_ratatui/update/README.md"
+          },
+          {
+            "observation": "The bevy example depends on bevy (git), bevy_egui, ratatui, egui_ratatui and soft_ratatui. The eframe example depends on eframe 0.34 and egui_ratatui.",
+            "url": "https://raw.githubusercontent.com/gold-silver-copper/egui_ratatui/update/bevy_example/Cargo.toml"
+          }
+        ],
+        "id": "64",
+        "limitations": [
+          "The repository has no dedicated macroquad example. Macroquad support rests on the README's Macroquad WASM guide link and the official repo description, not on a tested example.",
+          "Did not build or run the examples."
+        ],
+        "newDescription": null,
+        "newName": null,
+        "newUrl": null,
+        "reason": "Verified that gold-silver-copper/egui_ratatui is canonical (default branch `update`) and is not archived. The crate `RataguiBackend` is both a ratatui Backend and an egui Widget, and it uses ratatui-core and soft_ratatui. WASM/web deployment is documented. The workspace contains bevy and eframe examples. The README links a Macroquad WASM guide, and the official repo description still names macroquad. The description matches the upstream repo description almost word for word."
+      }
+    },
+    "a0b8db2c9bfaf13aca4669e0c9ae75f3ca65c499584a3c42f89c81decffadb38": {
+      "name": "mousefood",
+      "url": "https://github.com/ratatui/mousefood",
+      "section": "\ud83c\udfd7\ufe0f Frameworks",
+      "claim": "9a02688e2d77c9658707f8c16604e78d30231b176a67cb83ef95eeeac45d191b",
+      "snapshot": {
+        "complete": true,
+        "fingerprint": "c83f4e6256b915c53d36ea3649782366eb42ffea17e7e9bae7c588c2b5b99b17",
+        "source": {
+          "archived": false,
+          "defaultBranch": "main",
+          "description": "Build embedded applications with Ratatui! \ud83e\uddc0",
+          "files": {
+            "Cargo.toml": "1d5af539b06b6ecacb2eb0f53aa01d09f5be9619",
+            "README.md": "ce2bc57a3f350d534c5026ea3cabe5e0882583df",
+            "examples/README.md": "c37bc99e27c0c1876d7368ac6ad5868c9d49f6a4",
+            "examples/epd-waveshare-demo/Cargo.toml": "5d2af2b2b503540554318c24cf72ef049093e77d",
+            "examples/esp32-c6-embassy-example/Cargo.toml": "d9dd8f764054a7e642633be937a8c1ed09b671c4",
+            "examples/esp32-c6-embassy-example/README.md": "edde31e8976b8aa79532017c762e1d472117a3c5",
+            "examples/esp32-no-std-demo/Cargo.toml": "6fcb4e7a59984f64d9e2977419e55fb511fbbe69",
+            "examples/esp32-std-demo/Cargo.toml": "73b739ceca5341f49596380fc30a924b195a5301",
+            "examples/esp32-std-demo/README.md": "29d2be2e80a4df6c42fbbb96f03c2d8c9409ffee",
+            "examples/esp32s3-no-std-example/Cargo.toml": "557d9979262613f2fe4392e1d615ef2d7b2b9487",
+            "examples/esp32s3-no-std-example/README.md": "f6d526979353b550b8a6f7985978371377137ab2",
+            "examples/lilygo-epd47-demo/Cargo.toml": "7a0b4efd7c766ac40c2c7114b9ff3a6aa584306a",
+            "examples/lilygo-epd47-demo/README.md": "6019481172b6044543bc6e2eaedeb0ab35e98d1c",
+            "examples/rp2040-1in54-epd-example/Cargo.toml": "442404738e4224fed27db2904249852d6a31de4d",
+            "examples/rp2040-1in54-epd-example/README.md": "83036126c76bdc4cba58626910dc3074ad8c9df4",
+            "examples/simulator/Cargo.toml": "77afe536d460087334658e3db5d279b65e498b0a",
+            "examples/simulator/README.md": "b26638355ed9ed3e2abac38b8f287a3f15fd9550",
+            "examples/stm32-nucleo-oled-example/Cargo.toml": "16b67312c2ca34a896898c0557260a96ca72b205",
+            "examples/stm32-nucleo-oled-example/README.md": "6bdab47b74847f6303239ce637ddb06e9cb00984",
+            "mousefood-extras/Cargo.toml": "6ca3202682c6d704e71323c370f0a49d60ad669c",
+            "mousefood/Cargo.toml": "b98ef62a5394e88421c37b312d15a7fbd7dbbd48",
+            "mousefood/README.md": "32d46ee883b58d6a383eed06eb98f33aa6530ded"
+          },
+          "kind": "github",
+          "repository": "ratatui/mousefood"
+        }
+      },
+      "reviewedAt": "2026-11-10T15:57:43.946727+00:00",
+      "assessment": {
+        "action": "keep",
+        "blockers": [],
+        "evidence": [
+          {
+            "observation": "full_name ratatui/mousefood, archived false, default_branch main, last pushed 2026-11-09. Description: \"Build embedded applications with Ratatui! \ud83e\uddc0\".",
+            "url": "https://api.github.com/repos/ratatui/mousefood"
+          },
+          {
+            "observation": "Workspace members are mousefood, mousefood-extras and examples/*. Workspace dependencies include ratatui-core 0.1.2, ratatui 0.30.2 and embedded-graphics 0.8.2.",
+            "url": "https://raw.githubusercontent.com/ratatui/mousefood/main/Cargo.toml"
+          },
+          {
+            "observation": "Package mousefood 0.5.3 has description \"embedded-graphics backend for Ratatui\" and depends on ratatui-core and embedded-graphics. It has optional EPD features (weact, waveshare, lilygo-epd47).",
+            "url": "https://raw.githubusercontent.com/ratatui/mousefood/main/mousefood/Cargo.toml"
+          },
+          {
+            "observation": "README: \"Mousefood - a no-std embedded-graphics backend for Ratatui!\" It includes a quickstart that uses EmbeddedBackend with a ratatui Terminal.",
+            "url": "https://raw.githubusercontent.com/ratatui/mousefood/main/README.md"
+          }
+        ],
+        "id": "65",
+        "limitations": [
+          "Did not build or run the crate or its hardware examples."
+        ],
+        "newDescription": null,
+        "newName": null,
+        "newUrl": null,
+        "reason": "Verified that ratatui/mousefood is the canonical repository, owned by the Ratatui org, not archived, and was pushed to on 2026-11-09. The workspace member `mousefood` (0.5.3) is described as an \"embedded-graphics backend for Ratatui\" and depends on ratatui-core and embedded-graphics. The README calls it a no-std embedded-graphics backend for Ratatui. The current description is accurate."
+      }
+    }
+  },
+  "version": 1
+}

@@ -9,6 +9,8 @@ import zipfile
 import ci
 import history
 import checks
+import catalog
+import subprocess
 
 WORK = Path('.um/freshness/work')
 
@@ -29,15 +31,44 @@ def save(name, data):
 def main(stage):
     if stage == 'prepare':
         if WORK.exists(): shutil.rmtree(WORK)
-        data = ci.packet(Path.cwd(),int(value('slice')))
-        if len(json.dumps(data).encode()) > 512 * 1024:
-            raise ValueError('Catalog packet exceeds 512 KiB')
+        scope = value('slice').strip()
+        data = ci.packet(Path.cwd(), 'all' if scope == 'all' else int(scope))
+        data = catalog.prepare(data, catalog.load())
+        save('decision.json', dict(needsResearch=bool(data['entries'])))
+        save('research.json', catalog.research_packet(data))
+        if len(json.dumps(data).encode()) > 16 * 1024 * 1024:
+            raise ValueError('Catalog packet exceeds 16 MiB')
         save('catalog.json',data)
     elif stage == 'collectHistory':
         data, assessment = obj('catalog'), obj('assessment')
         ci.validate(data,assessment)
         collected = history.collect(data,assessment)
         save('history.json',collected)
+    elif stage == 'reviewHistory':
+        collected = obj('history')
+        save('history-model-receipt.json', {})
+        # An empty review returns without starting Claude. UM 0.72.1 cannot bind an
+        # optional skipped output, so this stage always produces the typed review.
+        if not collected['candidates']:
+            reviewed = dict(reviews=[])
+        else:
+            root = Path('.um/freshness')
+            schema = json.loads((root/'schemas/history.json').read_text())
+            schema.pop('$schema', None)  # Claude's schema validator uses its own dialect.
+            command = ['claude', '-p', '--model', 'claude-opus-5-5', '--effort', 'medium',
+                       '--output-format', 'json', '--json-schema', json.dumps(schema),
+                       '--system-prompt', (root/'prompts/history.md').read_text(),
+                       '--tools', '', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}',
+                       '--setting-sources', '', '--no-session-persistence']
+            result = subprocess.run(command, input=json.dumps(collected), capture_output=True,
+                                    text=True, timeout=600, check=True)
+            response = json.loads(result.stdout)
+            if response.get('is_error') or not isinstance(response.get('structured_output'), dict):
+                raise ValueError('History model did not return a successful structured review')
+            reviewed = response['structured_output']
+            save('history-model-receipt.json', {k:response.get(k) for k in
+                 ['modelUsage','total_cost_usd','duration_ms','num_turns']})
+        save('review.json', reviewed)
     elif stage == 'buildCorrections':
         data, assessment, collected, reviewed = (obj(n) for n in ('catalog','assessment','history','review'))
         if collected['catalogSha'] != data['catalogSha']:
@@ -49,26 +80,59 @@ def main(stage):
         status = ci.freshness(data)
         proposals, note = ci.previews(data,assessment,status)
         save('corrections.json',dict(catalog=data, assessment=assessment, history=collected,
-             review=reviewed, status=status, proposals=proposals, note=note))
+             review=reviewed, status=status, proposals=proposals, note=note, historyUsage=obj('historyUsage')))
     elif stage == 'validateCorrections':
         bundle = obj('corrections')
         log_dir = WORK/'checks'
-        validator = checks.Validator(Path.cwd(),bundle['catalog']['catalogSha'],bundle['catalog']['readme'],log_dir)
-        try:
-            bundle['evaluations'] = ci.evaluate_proposals(bundle['catalog'],bundle['proposals'],
-                bundle['history'],bundle['review'],validator,ci.freshness)
-        finally:
-            validator.close()
+        bundle['evaluations'] = {}
+        if bundle['proposals']:
+            validator = checks.Validator(Path.cwd(),bundle['catalog']['catalogSha'],bundle['catalog']['readme'],log_dir)
+            try:
+                bundle['evaluations'] = ci.evaluate_proposals(bundle['catalog'],bundle['proposals'],
+                    bundle['history'],bundle['review'],validator,ci.freshness)
+            finally:
+                validator.close()
         # Validation logs travel with the declared output, not as an implicit handoff.
         bundle['logs'] = {p.relative_to(log_dir).as_posix():p.read_text()
                           for p in log_dir.rglob('*.json')} if log_dir.exists() else {}
         save('validated.json',bundle)
-    elif stage == 'renderPreview':
-        bundle = obj('validated')
+    elif stage in {'renderPreview', 'renderUnchanged'}:
+        if stage == 'renderPreview':
+            bundle = obj('validated')
+        else:
+            data = obj('catalog')
+            assessment = dict(results=[])
+            bundle = dict(catalog=data, assessment=assessment, status=ci.freshness(data),
+                          proposals=[], note='No correction candidates.', evaluations={}, logs={})
         output = WORK/'preview'
         if output.exists(): shutil.rmtree(output)
+        baseline, progress = catalog.advance(bundle['catalog'], bundle['assessment'])
+        if progress['resolved']:
+            bundle['status'] = ci.freshness(bundle['catalog'])
+        if bundle['status'] != 'unchanged':
+            baseline = bundle['catalog']['baseline']
+            progress['pending'] += progress['resolved']
+            progress['resolved'] = []
+            for evaluation in bundle['evaluations'].values():
+                evaluation.update(ready=False, note='Catalog freshness changed or could not be verified before export.')
         ci.write_report(bundle['catalog'],bundle['assessment'],bundle['status'],output,
                         prepared=(bundle['proposals'],bundle['note']),evaluations=bundle['evaluations'])
+        (output/'baseline.json').write_text(json.dumps(baseline, indent=2)+'\n')
+        data = bundle['catalog']
+        summary = ('\n\n## Change detection\n\n'
+                   f"Scanned: {len(data['scannedEntries'])}. Unchanged: {len(data['unchangedEntries'])}. "
+                   f"Selected for research: {len(data['entries'])}. Fetch failures: {len(data['pendingEntries'])}.\n\n"
+                   f"New completed baseline reviews: {len(progress['resolved'])}. "
+                   f"Pending in this slice: {len(progress['pending'])}.\n\n"
+                   'The baseline.json artifact is a proposed replacement for .um/freshness/baseline.json. '
+                   'Review and commit it to persist coverage. Unresolved findings are not marked reviewed.\n')
+        if progress['pending']:
+            import html
+            summary += '\nPending: <pre>'+html.escape(', '.join(progress['pending']))+'</pre>\n'
+        with (output/'report.md').open('a') as report:
+            report.write(summary)
+        if bundle.get('historyUsage'):
+            (output/'history-model-receipt.json').write_text(json.dumps(bundle['historyUsage'], indent=2)+'\n')
         for name, content in bundle['logs'].items():
             path = Path(name)
             if path.is_absolute() or '..' in path.parts:

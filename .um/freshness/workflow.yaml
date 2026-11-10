@@ -1,5 +1,5 @@
 schemaVersion: 1
-description: Investigate catalog freshness, review history, validate corrections and produce a preview.
+description: Compare saved source evidence, investigate changed entries, and preview checked corrections and baseline updates.
 inputs:
   slice:
     kind: text
@@ -27,15 +27,28 @@ steps:
         kind: text
         from: path
         path: .um/freshness/work/catalog.json
+      research:
+        kind: text
+        from: path
+        path: .um/freshness/work/research.json
+      decision:
+        kind: json
+        from: path
+        path: .um/freshness/work/decision.json
+        schema: schemas/decision.json
   investigateEntries:
     kind: agent
+    condition:
+      equals:
+        - {ref: outputs.prepareCatalog.decision, pointer: /needsResearch}
+        - {value: true}
     agent:
       profile: auditor
       systemPrompt: prompts/auditor.md
       message:
         text:
           - file: schemas/assessment.json
-          - ref: outputs.prepareCatalog.catalog
+          - ref: outputs.prepareCatalog.research
     outputs:
       assessment:
         kind: json
@@ -43,6 +56,10 @@ steps:
         schema: schemas/assessment.json
   collectHistory:
     kind: cmd
+    condition:
+      equals:
+        - {ref: outputs.prepareCatalog.decision, pointer: /needsResearch}
+        - {value: true}
     inputs:
       catalog:
         ref: outputs.prepareCatalog.catalog
@@ -56,21 +73,32 @@ steps:
         from: path
         path: .um/freshness/work/history.json
   reviewHistory:
-    kind: agent
-    agent:
-      profile: auditor
-      systemPrompt: prompts/history.md
-      message:
-        text:
-          - file: schemas/history.json
-          - ref: outputs.collectHistory.history
+    kind: cmd
+    condition:
+      equals:
+        - {ref: outputs.prepareCatalog.decision, pointer: /needsResearch}
+        - {value: true}
+    inputs:
+      history:
+        ref: outputs.collectHistory.history
+    command:
+      argv: [python3, .um/freshness/scripts/stages.py, reviewHistory]
     outputs:
       review:
         kind: json
-        from: agent_result
+        from: path
+        path: .um/freshness/work/review.json
         schema: schemas/history.json
+      usage:
+        kind: text
+        from: path
+        path: .um/freshness/work/history-model-receipt.json
   buildCorrections:
     kind: cmd
+    condition:
+      equals:
+        - {ref: outputs.prepareCatalog.decision, pointer: /needsResearch}
+        - {value: true}
     inputs:
       catalog:
         ref: outputs.prepareCatalog.catalog
@@ -80,6 +108,8 @@ steps:
         ref: outputs.collectHistory.history
       review:
         ref: outputs.reviewHistory.review
+      historyUsage:
+        ref: outputs.reviewHistory.usage
     command:
       argv: [python3, .um/freshness/scripts/stages.py, buildCorrections]
     outputs:
@@ -90,6 +120,10 @@ steps:
         schema: schemas/corrections.json
   validateCorrections:
     kind: cmd
+    condition:
+      equals:
+        - {ref: outputs.prepareCatalog.decision, pointer: /needsResearch}
+        - {value: true}
     inputs:
       corrections:
         ref: outputs.buildCorrections.corrections
@@ -103,6 +137,10 @@ steps:
         schema: schemas/validated.json
   renderPreview:
     kind: cmd
+    condition:
+      equals:
+        - {ref: outputs.prepareCatalog.decision, pointer: /needsResearch}
+        - {value: true}
     inputs:
       validated:
         ref: outputs.validateCorrections.validated
@@ -118,8 +156,47 @@ steps:
         from: path
         path: .um/freshness/work/proposals.zip
         mediaType: application/zip
+      baseline:
+        kind: file
+        from: path
+        path: .um/freshness/work/preview/baseline.json
+        mediaType: application/json
+  renderUnchanged:
+    kind: cmd
+    condition:
+      equals:
+        - {ref: outputs.prepareCatalog.decision, pointer: /needsResearch}
+        - {value: false}
+    inputs:
+      catalog:
+        ref: outputs.prepareCatalog.catalog
+    command:
+      argv: [python3, .um/freshness/scripts/stages.py, renderUnchanged]
+    outputs:
+      report:
+        kind: text
+        from: path
+        path: .um/freshness/work/preview/report.md
+      proposals:
+        kind: file
+        from: path
+        path: .um/freshness/work/proposals.zip
+        mediaType: application/zip
+      baseline:
+        kind: file
+        from: path
+        path: .um/freshness/work/preview/baseline.json
+        mediaType: application/json
 exports:
   report:
     ref: outputs.renderPreview.report
   proposals:
     ref: outputs.renderPreview.proposals
+  baseline:
+    ref: outputs.renderPreview.baseline
+  unchangedReport:
+    ref: outputs.renderUnchanged.report
+  unchangedProposals:
+    ref: outputs.renderUnchanged.proposals
+  unchangedBaseline:
+    ref: outputs.renderUnchanged.baseline

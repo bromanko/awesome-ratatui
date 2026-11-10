@@ -32,6 +32,9 @@
       "additionalProperties": {
         "type": "string"
       }
+    },
+    "historyUsage": {
+      "type": "object"
     }
   },
   "required": [

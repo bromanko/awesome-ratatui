@@ -1,126 +1,147 @@
 # Catalog freshness review
 
-This opt-in workflow investigates a selected group of catalog entries and previews
-checked corrections in the GitHub Actions summary. It researches current relevance,
-checks prior discussions, and validates each proposed README edit in a disposable
-copy. It never opens correction PRs, comments, merges, or edits the working checkout.
+This opt-in workflow compares current source evidence with saved, completed reviews.
+Only new entries, changed catalog claims, or changed watched evidence go to Opus.
+Unchanged entries make no model calls. Scheduling and spending policy belong to the
+caller: the workflow has no budget gate, scheduler, or rotating sample.
 
-## What a run produces
+## First review and subsequent runs
 
-Each entry has findings, evidence URLs, blocking uncertainties, informational caveats,
-and a recommendation. Only proposal-specific blockers prevent a correction from
-reaching history review; caveats remain visible in the report and proposed PR body.
-Canonical names, URLs and concrete description claims are checked separately from
-continued relevance. Verified renames change the display name and move only that
-entry within its existing contiguous list; other entries retain their order.
-For each proposed correction, the summary adds:
+1. Build a source inventory without a model, if desired:
+   `python3 .um/freshness/scripts/catalog.py`. This writes
+   `.um/freshness/work/inventory.json`. Observations are **not** completed reviews.
+2. Bootstrap reviews in manageable slices using the workflow and your locally
+   authenticated Claude Code subscription, or an API key in GitHub Actions.
+3. Review the report and proposed `baseline.json`, then commit it as
+   `.um/freshness/baseline.json`. The baseline travels with the integration PR.
+4. Future runs compare live sources to that baseline and research only changes.
+   Review and commit each proposed replacement baseline to retain new coverage.
 
-- Prior-discussion status, search queries, reasons and cited issues/PRs.
-- Original and edited catalog check results, with existing unrelated broken links
-  listed separately from new failures or failures affecting the changed entry.
-- Ready for maintainer review or Held, with the reason.
-- Proposed PR title/body and a diff. Only ready proposals receive downloadable patches.
+The input `slice` accepts a zero-based group of three catalog entries, or `all` for
+whole-catalog comparison. Start with numbered slices when bootstrapping: `all` on a
+missing or partial baseline sends every successfully fetched, unreviewed entry to
+the model in one batch. Large initial batches may exceed the model's capacity.
+A baseline is optional; its absence means entries need an initial review.
+Numbered slices follow current README order. Baseline identities use URL and section,
+so insertion of another entry and line-number shifts do not trigger reanalysis.
 
-The `freshness-proposals` artifact contains the report, PR descriptions, available
-patches, collected discussion records and validation logs. Each proposal changes one
-entry, following the contribution guidelines. Maintainers still verify the evidence
-and decide whether to open a correction PR.
+```sh
+um workflow run --source-root .um/freshness --execution-root . \
+  --run-dir /tmp/ratatui-review-unique --input-text slice 1 --json \
+  .um/freshness/workflow.yaml
+```
 
-## One UM workflow
+Use a unique run directory outside the checkout. Review results before copying the
+baseline artifact; do not overwrite concurrent baseline updates from another run.
+The included baseline covers only the entries documented in INCREMENTAL-TESTING.md.
+It does not claim that the rest of the catalog has been reviewed.
 
-The single `workflow.yaml` declares seven nodes, with typed output references
-creating their dependency edges:
+## What change detection watches
+
+GitHub sources use authenticated, read-only repository metadata and recursive file
+trees. Fingerprints include canonical repository identity, description, archive
+status, default branch, README files, Markdown under `docs/`, and package manifests
+throughout the tree, including workspace members. Source contents are represented
+by Git blob hashes; no model is needed to collect or compare them. Unrelated source
+commits do not trigger analysis. Crates.io entries also watch crate identity,
+description, repository and latest version, plus the linked GitHub repository.
+Other sites use the linked page's final URL and body hash.
+
+This is a defined evidence watch, not proof that every behavior change will be
+detected. Changes confined to unwatched source files can be missed. Whole-page
+fingerprints can trigger extra reviews for cosmetic changes. GitHub tree requests
+still consume API quota, and large repositories can return truncated trees.
+
+Fetch failures, unsupported crate repositories, truncation, uncertainty, blockers,
+and proposed corrections stay pending. An outage is never treated as a removal or
+an unchanged review. Only evidence-backed `keep` results advance the baseline;
+watched sources are fetched again to ensure they did not change during research.
+Catalog claims and contribution rules are also fingerprinted. Corrections must be
+accepted and the corrected entry reviewed before it becomes a completed baseline.
+No model-free inventory can be silently promoted to a reviewed baseline.
+
+## Workflow graph
 
 ```mermaid
 flowchart TD
-  prepareCatalog --> investigateEntries
-  investigateEntries --> collectHistory
-  collectHistory --> reviewHistory
-  reviewHistory --> buildCorrections
-  buildCorrections --> validateCorrections
-  validateCorrections --> renderPreview
+  prepareCatalog[Read catalog, fetch evidence, compare baseline]
+  prepareCatalog -->|New or changed| investigateEntries[Opus research]
+  prepareCatalog -->|No research needed| renderUnchanged[Report and carry baseline forward]
+  investigateEntries --> collectHistory[Collect history for corrections]
+  collectHistory --> reviewHistory[Opus only if corrections exist]
+  reviewHistory --> buildCorrections[Build proposed corrections]
+  buildCorrections --> validateCorrections[Validate proposed edits]
+  validateCorrections --> renderPreview[Report, checked patches and proposed baseline]
 ```
 
-- **prepareCatalog** captures the checked-out catalog revision and selected entries.
-- **investigateEntries** researches official sources and returns structured findings.
-- **collectHistory** retrieves matching issue/PR bodies, comments, reviews and diffs.
-- **reviewHistory** assesses duplicates, related context, rejections and merged fixes.
-- **buildCorrections** constructs one-entry patches against the pinned catalog.
-- **validateCorrections** applies edits in disposable copies, runs baseline/edited
-  checks, applies history holds, and rechecks catalog freshness.
-- **renderPreview** renders the decisions and exports the report plus proposals ZIP.
+The eight declared UM nodes remain visible individually. When nothing needs research,
+six stages are skipped and only preparation and reporting run. With research but no
+corrections, the history stage returns an empty review without starting Claude and
+validation performs no checker work. Research receives selected entries, source
+fingerprints, previous reviews, and contribution rules rather than the full catalog.
 
-The five command stages read captured inputs from UM_STEP_INPUTS; they do not read
-another stage's mutable output files. Validation logs are part of the declared
-validated output. The rendering step consumes those results without rerunning checks.
-UM owns stage ordering, failure propagation, retained outputs and final exports.
-If a required stage fails, downstream work is blocked and no final preview is exported.
-With no correction candidates, history review returns an empty review and later stages
-produce a research-only report. There is no separate history workflow.
+Research is a native UM agent using Opus 5.5 at medium effort. History review uses
+Claude Code with the same model and effort inside its command stage, with tools
+disabled: it interprets the collected discussion records. This permits an empty
+packet to return a typed result without a model call. UM 0.72.1 requires all referenced
+condition outputs to be available, even across skipped branches; the command stage
+avoids an unavailable-output join. All inter-stage inputs use declared UM references.
 
-GitHub Actions installs the dependencies, invokes UM once, displays its exported
-report and uploads the exported proposals ZIP. Its job contains no research,
-history collection, patch-building or validation orchestration.
+There are two mutually exclusive export sets: `report`, `proposals`, `baseline` for
+research runs; `unchangedReport`, `unchangedProposals`, `unchangedBaseline` otherwise.
+Both write the same final report and ZIP locations. GitHub Actions invokes UM once,
+displays the successful report and uploads the ZIP. It does not orchestrate research.
 
-Search caps are explicit: 30 results per query, 10 discussions per candidate,
-100 records per comments/reviews/files request (reaching that limit is treated as
-incomplete), and bounded evidence sizes. Errors or truncation never count as a clean
-search. Search is still limited by GitHub's index; it is not proof no prior discussion
-exists. A closed-unmerged PR alone is not a rejection. A prior objection may be
-considered addressed only when the history assessment explains concrete new evidence.
-History classification remains model judgment; cited references are checked against
-the collected records, but semantic correctness is not independently proven.
+## Outputs and safety of proposals
 
-Validation uses awesome-lint 2.3.0 with a dependency lock, typos 1.51.1 and Lychee
-0.24.2 with verified release checksums. Lint/spelling failures hold the edit. New
-link failures, failures affecting the changed entry, and excluded destinations hold
-it; unrelated failures present in both versions are reported separately. Missing
-per-link success evidence also holds the edit, including after a rename. Lychee
-runs with detailed output so the destination must be positively verified. Missing
-or timed-out checkers hold the edit. Checks are bounded to 180 seconds each. Failed
-edits are withheld, without speculative automatic repair or a model retry loop.
-Validation does not prove the factual merits of a removal or replacement.
+Each researched entry includes evidence, blockers, caveats and a recommendation.
+The report also shows scanned, unchanged, researched and pending counts. The ZIP
+contains the report, proposed baseline, available correction patches, discussion
+records and validation logs. No correction PRs, comments, merges or catalog edits
+are submitted. Maintainers decide which changes to accept.
 
-## Enable a fork trial
+Canonical names, URLs and description claims are checked separately from continued
+relevance. Verified renames move only the entry within its existing contiguous list.
+Informational caveats stay visible; proposal-specific blockers hold corrections.
+
+History collection searches upstream and the fork, retrieves bodies, comments,
+reviews and changed-file patches, and holds incomplete results. Limits are 30 search
+matches per query, 10 discussions per candidate, 100 records per detail endpoint,
+and bounded evidence sizes. GitHub search does not index patch contents, so a PR
+mentioning an entry only in its diff can be missed. A closed-unmerged PR alone does
+not prove rejection. History interpretation remains model judgment.
+
+Correction validation uses awesome-lint 2.3.0, typos 1.51.1 and Lychee 0.24.2 in a
+disposable copy. Lint/spelling failures hold edits. Link checks compare baseline and
+edited README files; unrelated pre-existing failures are distinguished from new or
+changed-entry failures. Changed destinations require positive success evidence.
+Checks are bounded to 180 seconds each. Missing tools, timeouts and failures hold
+edits; there is no speculative repair loop. Catalog freshness is rechecked before
+proposals are released. Validation does not prove factual correctness.
+
+## GitHub trial
 
 1. Review and merge the integration into the fork's default branch when ready.
 2. Configure `awesome-ratatui-review` with required reviewers and an
    `ANTHROPIC_API_KEY` environment secret.
 3. Set repository variable `UM_FRESHNESS_ENABLED=true`.
-4. Run **UM freshness review** on a reviewed branch with the desired slice number.
+4. Run **UM freshness review** on a reviewed branch with the chosen slice or `all`.
 
-This remains a manual pilot, with no scheduler or persisted coverage. The original
-586-entry snapshot has 196 flat slices (0 through 195); catalog edits can shift
-those slices. Keep a manual record of reviewed entries during the trial.
+GitHub permissions are read-only and checkout does not persist credentials.
+`FRESHNESS_GITHUB_TOKEN` supplies authenticated source and history requests. Research
+agents retain normal tools, with instructions prohibiting external writes and
+execution of project code; those instructions are not an execution sandbox.
+The job uses UM 0.72.1, Claude Code 2.1.284, and a 45-minute timeout. Provider usage is
+billable when models run. Local trials can use existing Claude Code authentication.
 
-One GitHub job uses published UM 0.72.1, official Claude Code 2.1.284 and Opus 5.5
-at medium effort. The action is pinned to
-`3b5d29379bc349df8d95b29b599e71701aa1d017`. Both agent stages are part of the same run; an empty history packet requires no
-additional research. The job has a 45-minute timeout and no
-dollar cap. Provider usage is billable once enabled.
+## Verification
 
-GitHub permissions are read-only. Checkout does not persist credentials. The provider
-key and read-only GitHub token are explicitly admitted to the UM run and available
-to its steps. The token is passed under FRESHNESS_GITHUB_TOKEN; API commands map it
-to the GitHub CLI environment only when used.
-Agent tools remain available, with instructions prohibiting external writes and
-execution of project code. Those instructions are not an execution sandbox.
-
-## Check and preview the integration
-
-The **Check UM freshness integration** PR check runs offline tests, exercises the
-real validation tools on an intentionally invalid fixture, executes all seven UM
-stages with synthetic agent/network/check results, and renders a clearly
-labeled fictional preview. The preview's simulated checks are not live findings.
-Download `freshness-example` to inspect its example patch and PR description.
+The PR check tests correction, keep-only and unchanged branches, plus the offline
+regressions and real positive/negative validation-tool fixtures. Synthetic previews
+are labeled; they are not live findings. See INCREMENTAL-TESTING.md for this revision's
+live evidence, and TESTING.md / CURRENT-SAMPLE.md for earlier evaluations.
 
 ```sh
 python3 -m unittest discover -s .um/freshness/tests -v
 um workflow validate --source-root .um/freshness --json .um/freshness/workflow.yaml
-actionlint .github/workflows/um-freshness.yml .github/workflows/um-freshness-checks.yml
 ```
-
-The earlier local prototype's Yardlet result, Burn false-alarm risk, 14 tests and
-roughly $0.23 cost apply to a different implementation. They do not establish this
-workflow's accuracy, cost or time savings. No live model audit has been performed
-for this revision. A prospective fork trial remains necessary before scheduling.

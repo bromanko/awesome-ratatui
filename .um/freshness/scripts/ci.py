@@ -36,13 +36,13 @@ def entries(readme):
 
 
 def packet(repo, index):
-    if type(index) is not int or index < 0:
-        raise ValueError('Slice must be a nonnegative integer')
+    if index != 'all' and (type(index) is not int or index < 0):
+        raise ValueError('Slice must be a nonnegative integer or all')
     sha = git(repo, 'rev-parse', 'HEAD').strip()
     readme = git(repo, 'show', f'{sha}:README.md')
     rules = git(repo, 'show', f'{sha}:contributing.md')
     catalog = entries(readme)
-    selected = catalog[index * 3:(index + 1) * 3]
+    selected = catalog if index == 'all' else catalog[index * 3:(index + 1) * 3]
     if not selected:
         raise ValueError(f'Slice out of range: choose 0–{(len(catalog)-1)//3}')
     return dict(repository=UPSTREAM, catalogSha=sha,
@@ -104,7 +104,7 @@ def render(data, raw, status):
     lines = ['# Freshness research', '', 'Advisory only; every suggested change requires maintainer review.',
              'No list edits, PRs, comments, or reviews were submitted.', '',
              f"Catalog revision: `{data['catalogSha']}`",
-             f"Slice: {data['slice']} of {data['sliceCount']} (zero-based)",
+             ("Scope: entire catalog" if data['slice'] == 'all' else f"Slice: {data['slice']} of {data['sliceCount']} (zero-based)"),
              'Catalog recheck: ' + status, '',
              'Sources below are agent-reported observations, not independent verification.', '']
     # Treat source/model strings as plain text, preventing injected Markdown/HTML.
