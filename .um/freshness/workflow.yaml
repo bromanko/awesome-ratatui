@@ -1,0 +1,194 @@
+schemaVersion: 1
+description: Compare saved source evidence, investigate changed entries, and preview checked corrections and baseline updates.
+environmentPassthrough:
+  - ANTHROPIC_API_KEY
+  - FRESHNESS_GITHUB_TOKEN
+  - FRESHNESS_REPOSITORY
+steps:
+  prepareCatalog:
+    kind: cmd
+    command:
+      argv: [python3, .um/freshness/scripts/stages.py, prepare]
+    outputs:
+      catalog:
+        kind: text
+        from: path
+        path: .um/freshness/work/catalog.json
+      research:
+        kind: text
+        from: path
+        path: .um/freshness/work/research.json
+      decision:
+        kind: json
+        from: path
+        path: .um/freshness/work/decision.json
+        schema: schemas/decision.json
+  investigateEntries:
+    kind: cmd
+    condition:
+      equals:
+        - {ref: outputs.prepareCatalog.decision, pointer: /needsResearch}
+        - {value: true}
+    inputs:
+      research:
+        ref: outputs.prepareCatalog.research
+    command:
+      argv: [python3, .um/freshness/scripts/stages.py, investigateEntries]
+    outputs:
+      assessment:
+        kind: json
+        from: path
+        path: .um/freshness/work/assessment.json
+        schema: schemas/assessment.json
+      usage:
+        kind: text
+        from: path
+        path: .um/freshness/work/research-model-receipt.json
+  collectHistory:
+    kind: cmd
+    condition:
+      equals:
+        - {ref: outputs.prepareCatalog.decision, pointer: /needsResearch}
+        - {value: true}
+    inputs:
+      catalog:
+        ref: outputs.prepareCatalog.catalog
+      assessment:
+        ref: outputs.investigateEntries.assessment
+    command:
+      argv: [python3, .um/freshness/scripts/stages.py, collectHistory]
+    outputs:
+      history:
+        kind: text
+        from: path
+        path: .um/freshness/work/history.json
+  reviewHistory:
+    kind: cmd
+    condition:
+      equals:
+        - {ref: outputs.prepareCatalog.decision, pointer: /needsResearch}
+        - {value: true}
+    inputs:
+      history:
+        ref: outputs.collectHistory.history
+    command:
+      argv: [python3, .um/freshness/scripts/stages.py, reviewHistory]
+    outputs:
+      review:
+        kind: json
+        from: path
+        path: .um/freshness/work/review.json
+        schema: schemas/history.json
+      usage:
+        kind: text
+        from: path
+        path: .um/freshness/work/history-model-receipt.json
+  buildCorrections:
+    kind: cmd
+    condition:
+      equals:
+        - {ref: outputs.prepareCatalog.decision, pointer: /needsResearch}
+        - {value: true}
+    inputs:
+      catalog:
+        ref: outputs.prepareCatalog.catalog
+      assessment:
+        ref: outputs.investigateEntries.assessment
+      history:
+        ref: outputs.collectHistory.history
+      review:
+        ref: outputs.reviewHistory.review
+      researchUsage:
+        ref: outputs.investigateEntries.usage
+      historyUsage:
+        ref: outputs.reviewHistory.usage
+    command:
+      argv: [python3, .um/freshness/scripts/stages.py, buildCorrections]
+    outputs:
+      corrections:
+        kind: json
+        from: path
+        path: .um/freshness/work/corrections.json
+        schema: schemas/corrections.json
+  validateCorrections:
+    kind: cmd
+    condition:
+      equals:
+        - {ref: outputs.prepareCatalog.decision, pointer: /needsResearch}
+        - {value: true}
+    inputs:
+      corrections:
+        ref: outputs.buildCorrections.corrections
+    command:
+      argv: [python3, .um/freshness/scripts/stages.py, validateCorrections]
+    outputs:
+      validated:
+        kind: json
+        from: path
+        path: .um/freshness/work/validated.json
+        schema: schemas/validated.json
+  renderPreview:
+    kind: cmd
+    condition:
+      equals:
+        - {ref: outputs.prepareCatalog.decision, pointer: /needsResearch}
+        - {value: true}
+    inputs:
+      validated:
+        ref: outputs.validateCorrections.validated
+    command:
+      argv: [python3, .um/freshness/scripts/stages.py, renderPreview]
+    outputs:
+      report:
+        kind: text
+        from: path
+        path: .um/freshness/work/preview/report.md
+      proposals:
+        kind: file
+        from: path
+        path: .um/freshness/work/proposals.zip
+        mediaType: application/zip
+      baseline:
+        kind: file
+        from: path
+        path: .um/freshness/work/preview/baseline.json
+        mediaType: application/json
+  renderUnchanged:
+    kind: cmd
+    condition:
+      equals:
+        - {ref: outputs.prepareCatalog.decision, pointer: /needsResearch}
+        - {value: false}
+    inputs:
+      catalog:
+        ref: outputs.prepareCatalog.catalog
+    command:
+      argv: [python3, .um/freshness/scripts/stages.py, renderUnchanged]
+    outputs:
+      report:
+        kind: text
+        from: path
+        path: .um/freshness/work/preview/report.md
+      proposals:
+        kind: file
+        from: path
+        path: .um/freshness/work/proposals.zip
+        mediaType: application/zip
+      baseline:
+        kind: file
+        from: path
+        path: .um/freshness/work/preview/baseline.json
+        mediaType: application/json
+exports:
+  report:
+    ref: outputs.renderPreview.report
+  proposals:
+    ref: outputs.renderPreview.proposals
+  baseline:
+    ref: outputs.renderPreview.baseline
+  unchangedReport:
+    ref: outputs.renderUnchanged.report
+  unchangedProposals:
+    ref: outputs.renderUnchanged.proposals
+  unchangedBaseline:
+    ref: outputs.renderUnchanged.baseline

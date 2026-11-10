@@ -1,0 +1,54 @@
+name: UM freshness review
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+concurrency:
+  group: um-freshness
+  cancel-in-progress: false
+jobs:
+  review:
+    if: vars.UM_FRESHNESS_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    environment: awesome-ratatui-review
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Install Claude
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash -s 2.1.284
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install validation tools
+        run: bash .um/freshness/checks/install.sh
+      - name: Check API key
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: test -n "$ANTHROPIC_API_KEY" || { echo 'Configure ANTHROPIC_API_KEY in the protected environment.'; exit 1; }
+      - name: Run freshness workflow
+        id: um
+        uses: useful-machinery/run-action@3b5d29379bc349df8d95b29b599e71701aa1d017
+        with:
+          um-version: 0.72.1
+          workflow: .um/freshness/workflow.yaml
+          source-root: .um/freshness
+          execution-root: ${{ github.workspace }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          FRESHNESS_GITHUB_TOKEN: ${{ github.token }}
+          FRESHNESS_REPOSITORY: ${{ github.repository }}
+      - name: Display preview
+        run: cat .um/freshness/work/preview/report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Save proposed changes
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: freshness-proposals
+          path: .um/freshness/work/proposals.zip
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,4 @@
+__pycache__/
+checks/node_modules/
+work/
+workflow-test.yaml
