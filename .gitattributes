@@ -1,0 +1,3 @@
+# Saved review data and dependency resolution; expand in GitHub when needed.
+.um/freshness/baseline.json linguist-generated=true
+.um/freshness/checks/package-lock.json linguist-generated=true

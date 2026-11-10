@@ -1,0 +1,45 @@
+name: Check UM freshness integration
+on:
+  pull_request:
+    paths: ['.um/freshness/**', '.github/workflows/um-freshness*.yml']
+  push:
+    paths: ['.um/freshness/**', '.github/workflows/um-freshness*.yml']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        scenario: [correction, keep, unchanged]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Offline checks
+        run: python3 -m unittest discover -s .um/freshness/tests -v
+      - name: Install validation tools
+        run: bash .um/freshness/checks/install.sh
+      - name: Exercise real validation tools
+        run: python3 .um/freshness/tests/check_tools.py
+      - name: Prepare UM graph integration test
+        run: python3 .um/freshness/tests/workflow_fixture.py generate ${{ matrix.scenario }}
+      - name: Exercise conditional UM graph
+        id: graph
+        uses: useful-machinery/run-action@3b5d29379bc349df8d95b29b599e71701aa1d017
+        with:
+          um-version: 0.72.1
+          workflow: .um/freshness/workflow-test.yaml
+          source-root: .um/freshness
+          execution-root: ${{ github.workspace }}
+      - name: Verify native research batch exports
+        run: python3 .um/freshness/tests/check_research.py
+      - name: Verify UM exports
+        run: |
+          test -s .um/freshness/work/preview/report.md
+          test -s .um/freshness/work/preview/baseline.json
+          python3 -m zipfile -t .um/freshness/work/proposals.zip

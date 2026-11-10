@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "catalog": {
+      "type": "object"
+    },
+    "assessment": {
+      "type": "object"
+    },
+    "history": {
+      "type": "object"
+    },
+    "review": {
+      "type": "object"
+    },
+    "status": {
+      "type": "string"
+    },
+    "proposals": {
+      "type": "array"
+    },
+    "note": {
+      "type": "string"
+    },
+    "historyUsage": {
+      "type": "object"
+    },
+    "researchUsage": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "catalog",
+    "assessment",
+    "history",
+    "review",
+    "status",
+    "proposals",
+    "note"
+  ]
+}
