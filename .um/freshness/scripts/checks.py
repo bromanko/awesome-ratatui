@@ -1,5 +1,6 @@
 """Validate one-entry patches in disposable copies using the upstream check tools."""
 import io
+import difflib
 import json
 import os
 import re
@@ -56,10 +57,13 @@ def compare_links(before, after, relevant):
 
 def changed_urls(before, after):
     """Require success for every destination on changed catalog lines, not just titles."""
-    import ci
-    old_lines = {entry['line'] for entry in ci.entries(before)}
-    return sorted({url.rstrip('.,;:!') for entry in ci.entries(after) if entry['line'] not in old_lines
-                   for url in re.findall(r'https?://[^\s<>()\[\]"\']+', entry['line'])})
+    old_lines, new_lines = before.splitlines(), after.splitlines()
+    changed = [line for tag, _, _, start, end in difflib.SequenceMatcher(
+        a=old_lines, b=new_lines, autojunk=False).get_opcodes() if tag in {'insert', 'replace'}
+        for line in new_lines[start:end]]
+    return sorted({url.rstrip('.,;:!') for line in changed
+                   for url in re.findall(r'https?://[^\s<>()\[\]"\']+', line)})
+
 
 
 class Validator:

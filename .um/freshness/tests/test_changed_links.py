@@ -38,3 +38,12 @@ class ChangedLinkTests(unittest.TestCase):
         before='# Tools\n- [Tool](https://example.com) - Original.\n'
         after=before.replace('Original.','[Docs](https://docs.example/path) and <https://api.example> or https://bare.example.')
         self.assertEqual(set(checks.changed_urls(before,after)),{'https://example.com','https://docs.example/path','https://api.example','https://bare.example'})
+
+    def test_changed_row_matching_another_section_still_requires_success(self):
+        before='# First\n- [Tool](https://old.example) - A tool.\n# Second\n- [Tool](https://new.example) - A tool.\n'
+        after=before.replace('https://old.example','https://new.example')
+        relevant=checks.changed_urls(before,after)
+        self.assertEqual(relevant,['https://new.example'])
+        result=checks.compare_links(dict(errors=[]),dict(errors=[],excluded=['https://new.example'],successful=[]),relevant)
+        self.assertFalse(result['passed'])
+        self.assertEqual(result['unverified'],['https://new.example/'])
