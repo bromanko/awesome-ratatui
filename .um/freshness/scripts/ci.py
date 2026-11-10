@@ -145,14 +145,14 @@ def previews(data, raw, status):
         if row['action'] == 'remove':
             del lines[offset]
         else:
-            name = row['newName'] or entry['name']
-            if not name.strip() or name != name.strip() or any(c in name for c in '[]()<>\r\n\t'):
+            name = row['newName'] if row['newName'] is not None else entry['name']
+            if row['newName'] is not None and (not name.strip() or name != name.strip() or any(c in name for c in '[]()<>\r\n\t')):
                 raise ValueError('Invalid entry name')
-            url = row['newUrl'] or entry['url']
-            description = row['newDescription'] or entry['description']
-            if any(c in url for c in '()<>\r\n') or any(c in description for c in '\r\n'):
+            url = row['newUrl'] if row['newUrl'] is not None else entry['url']
+            description = row['newDescription'] if row['newDescription'] is not None else entry['description']
+            if (row['newUrl'] is not None and any(c in url for c in '()<>\r\n')) or (row['newDescription'] is not None and any(c in description for c in '\r\n')):
                 raise ValueError('Correction must be a single well-formed Markdown entry')
-            if not description.strip() or description != description.strip():
+            if row['newDescription'] is not None and (not description.strip() or description != description.strip()):
                 raise ValueError('Correction description must be nonempty and trimmed')
             ending = '\r\n' if lines[offset].endswith('\r\n') else '\n' if lines[offset].endswith('\n') else ''
             replacement = f"- [{name}]({url}) - {description}" + ending
