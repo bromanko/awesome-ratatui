@@ -68,8 +68,9 @@ the history command returns a typed empty result without starting a model and
 removes only the dialect header when invoking Claude. Schema validation remains
 in UM, and downstream checks still require exact candidate coverage.
 
-The baseline contains **three reviewed entries**, not 576 or 586. The remaining
-catalog still needs its initial review. Watched evidence is limited to the source
+At the end of this trial, the baseline contained **three reviewed entries**.
+The subsequent [initial catalog review](INITIAL-REVIEW.md) records the full pass
+and supersedes that initial coverage count. Watched evidence is limited to the source
 fields documented in README.md; an unchanged fingerprint is not proof that every
 project behavior is unchanged. The previously observed GitHub history-search gap
 for entries mentioned only in PR diffs remains a limitation.

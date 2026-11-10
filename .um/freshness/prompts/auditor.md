@@ -36,6 +36,13 @@ on rendered-page summaries. Compare concrete description claims with current doc
 a confirmed screen-count or API-coverage mismatch warrants update even when the
 project remains relevant. Prefer durable concise wording over volatile counts.
 
+A non-exclusive description does not need to enumerate every supported format,
+protocol, backend or use case. If the listed capabilities remain supported, added
+capabilities alone are not a factual correction. Do not invent an "only" claim that
+the entry never made. Keep an accurate entry; an optional expansion or clarification
+may be noted as a caveat, not an update recommendation. Still update explicit false
+claims, unsupported listed capabilities, incorrect identities, or outdated counts.
+
 Return exactly one result per selected id and no others. Evidence records are your
 account of research, not independent verification. Use an empty evidence array
 and uncertain when no source could be read. blockers are unresolved facts that

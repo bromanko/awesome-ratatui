@@ -33,8 +33,10 @@ um workflow run --source-root .um/freshness --execution-root . \
 
 Use a unique run directory outside the checkout. Review results before copying the
 baseline artifact; do not overwrite concurrent baseline updates from another run.
-The included baseline covers only the entries documented in INCREMENTAL-TESTING.md.
-It does not claim that the rest of the catalog has been reviewed.
+The [initial catalog review](INITIAL-REVIEW.md) documents the included baseline,
+pending findings, and [entry-by-entry coverage](initial-review-coverage.csv).
+Only supported keeps with complete, stable snapshots enter the baseline; reviewed
+entries with unresolved findings or snapshot failures remain pending.
 
 ## What change detection watches
 
@@ -139,7 +141,8 @@ billable when models run. Local trials can use existing Claude Code authenticati
 The PR check tests correction, keep-only and unchanged branches, plus the offline
 regressions and real positive/negative validation-tool fixtures. Synthetic previews
 are labeled; they are not live findings. See INCREMENTAL-TESTING.md for this revision's
-live evidence, and TESTING.md / CURRENT-SAMPLE.md for earlier evaluations.
+live routing evidence, INITIAL-REVIEW.md for the full initial research pass, and
+TESTING.md / CURRENT-SAMPLE.md for earlier evaluations.
 
 ```sh
 python3 -m unittest discover -s .um/freshness/tests -v
