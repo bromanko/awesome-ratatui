@@ -46,7 +46,7 @@ def run(stage):
         data=stages.obj('catalog')
         rows=[dict(id=e['id'],action='keep',reason='Synthetic control.',
                    evidence=[dict(url='https://example.com',observation='Synthetic evidence, not live research.')],
-                   limitations=[],newUrl=None,newDescription=None) for e in data['entries']]
+                   limitations=[], blockers=[], newName=None,newUrl=None,newDescription=None) for e in data['entries']]
         rows[0].update(action='update',newDescription=data['entries'][0]['description']+' Synthetic fixture.')
         stages.save('fixture-assessment.json',dict(results=rows))
     elif stage=='agentReview':

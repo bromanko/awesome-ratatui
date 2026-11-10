@@ -33,7 +33,7 @@ class DiscussionTests(unittest.TestCase):
 
     def test_search_outage_recorded(self):
         data=dict(catalogSha='a'*40,entries=[dict(id='1',name='Example',url='https://old.example')])
-        raw=dict(results=[dict(id='1',action='update',limitations=[],newUrl='https://new.example')])
+        raw=dict(results=[dict(id='1',action='update',limitations=[], blockers=[], newName=None,newUrl='https://new.example')])
         with patch.dict(history.os.environ, {'GITHUB_REPOSITORY':'bromanko/awesome-ratatui'}), patch.object(history,'api',side_effect=OSError):
             result=history.collect(data,raw)['candidates'][0]
         self.assertFalse(result['complete'])
@@ -43,7 +43,7 @@ class DiscussionTests(unittest.TestCase):
 
     def test_truncated_search_is_not_clear(self):
         data=dict(catalogSha='a'*40,entries=[dict(id='1',name='Example',url='https://old.example')])
-        raw=dict(results=[dict(id='1',action='remove',limitations=[],newUrl=None)])
+        raw=dict(results=[dict(id='1',action='remove',limitations=[], blockers=[], newName=None,newUrl=None)])
         with patch.object(history,'api',return_value=dict(total_count=31,incomplete_results=False,items=[])):
             self.assertFalse(history.collect(data,raw)['candidates'][0]['complete'])
 
@@ -51,10 +51,10 @@ class DiscussionTests(unittest.TestCase):
 class ValidationTests(unittest.TestCase):
     def test_preexisting_unrelated_failure_does_not_block(self):
         before=dict(errors=['https://unrelated.example'])
-        after=dict(errors=['https://unrelated.example'],excluded=[])
+        after=dict(errors=['https://unrelated.example'],excluded=[],successful=['https://changed.example'])
         result=checks.compare_links(before,after,['https://changed.example'])
         self.assertTrue(result['passed'])
-        self.assertEqual(result['preexisting'],before['errors'])
+        self.assertEqual(result['preexisting'],['https://unrelated.example/'])
 
     def test_new_failure_and_affected_old_failure_block(self):
         after=dict(errors=['https://changed.example'],excluded=[])

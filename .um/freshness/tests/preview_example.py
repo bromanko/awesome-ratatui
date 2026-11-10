@@ -15,10 +15,10 @@ def example():
                 entries=ci.entries(readme), slice=0, sliceCount=1)
     rows = [dict(id='2', action='update', reason='Fictional example: official documentation lists a new project URL.',
                  evidence=[dict(url='https://example.com/notes', observation='Synthetic evidence of a move; no source was fetched.')],
-                 limitations=[], newUrl='https://example.com/terminal-notes', newDescription=None),
+                 limitations=[], blockers=[], newName=None, newUrl='https://example.com/terminal-notes', newDescription=None),
             dict(id='3', action='keep', reason='Fictional example: the description still fits.',
                  evidence=[dict(url='https://example.com/tasks', observation='Synthetic control; no source was fetched.')],
-                 limitations=[], newUrl=None, newDescription=None)]
+                 limitations=[], blockers=[], newName=None, newUrl=None, newDescription=None)]
     return data, dict(results=rows)
 
 
@@ -31,7 +31,7 @@ if __name__ == '__main__':
     data['readmeHash'] = hashlib.sha256(data['readme'].encode()).hexdigest()
     raw['results'].append(dict(id='4',action='update',reason='Fictional example: suggested new clock homepage.',
         evidence=[dict(url='https://example.com/clock',observation='Synthetic evidence; no source fetched.')],
-        limitations=[],newUrl='https://example.com/new-clock',newDescription=None))
+        limitations=[], blockers=[], newName=None,newUrl='https://example.com/new-clock',newDescription=None))
     duplicate='https://github.com/example/catalog/pull/123'
     candidates=[dict(id=str(i),complete=True,errors=[],records=[],
         queries=['Fictional example: project name, old URL, proposed URL']) for i in (2,3,4)]

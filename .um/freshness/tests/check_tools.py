@@ -20,7 +20,7 @@ with tempfile.TemporaryDirectory() as temp:
                     '-c','commit.gpgsign=false','commit','-qm','Synthetic validation fixture'],check=True)
     sha=ci.git(repo,'rev-parse','HEAD').strip()
     data=dict(catalogSha=sha,readme=text,readmeHash=hashlib.sha256(text.encode()).hexdigest(),entries=ci.entries(text))
-    raw=dict(results=[dict(id='3',action='update',reason='Synthetic spelling failure.',evidence=[dict(url='https://example.com',observation='Fixture')],limitations=[],newUrl=None,newDescription='A teh tool.')])
+    raw=dict(results=[dict(id='3',action='update',reason='Synthetic spelling failure.',evidence=[dict(url='https://example.com',observation='Fixture')],limitations=[], blockers=[], newName="Renamed",newUrl=None,newDescription='A teh tool.')])
     proposal=ci.previews(data,raw,'unchanged')[0][0]
     validator=checks.Validator(repo,sha,text,repo/'output')
     try:
@@ -29,6 +29,13 @@ with tempfile.TemporaryDirectory() as temp:
         assert result['patched']['spelling'] != 0,result
         assert result['patched']['lint'] != -1,result
         assert result['patched']['links'] in (0,2),result
+        assert result['links']['unverified'] == ['https://example.com/'],result
+        # A real successful link must supply per-link evidence, not just a total.
+        (repo/'target.md').write_text('Existing target.\n')
+        (repo/'link-fixture.md').write_text('[Target](target.md)\n')
+        linked = checks.run(['lychee','--verbose','--no-progress','--format','json','link-fixture.md'],repo,validator.env)
+        parsed = checks.links(linked,repo)
+        assert checks.compare_links(dict(errors=[]),parsed,['file://CATALOG/target.md'])['passed'],parsed
         print('Real validators completed; bad spelling/formatting and excluded destination held the synthetic proposal.')
     finally:
         validator.close()

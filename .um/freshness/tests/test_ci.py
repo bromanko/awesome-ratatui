@@ -16,7 +16,7 @@ class FreshnessTests(unittest.TestCase):
         self.data = dict(entries=[dict(id='4', name='Example')], catalogSha='a'*40, slice=0, sliceCount=1, readmeHash='hash')
         self.row = dict(id='4', action='keep', reason='Official docs describe a TUI.',
                         evidence=[dict(url='https://example.com', observation='Terminal interface')],
-                        limitations=[], newUrl=None, newDescription=None)
+                        limitations=[], blockers=[], newName=None, newUrl=None, newDescription=None)
 
     def test_selection_preserves_scope_and_duplicate_names(self):
         rows = ci.entries('# Frameworks\n- [Demo](https://example.com) - Tools.\n# Apps\n- [Demo](https://other.example.com) - App.')
@@ -93,8 +93,8 @@ class PreviewTests(unittest.TestCase):
         for status in ['changed', 'unverified']:
             self.assertEqual(ci.previews(self.data, self.raw, status)[0], [])
 
-    def test_limitations_withhold_patch(self):
-        self.raw['results'][0]['limitations'] = ['Destination ownership unclear.']
+    def test_blockers_withhold_patch(self):
+        self.raw['results'][0]['blockers'] = ['Destination ownership unclear.']
         self.assertEqual(ci.previews(self.data, self.raw, 'unchanged')[0], [])
 
     def test_keep_produces_no_patch(self):

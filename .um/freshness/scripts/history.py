@@ -59,13 +59,13 @@ def collect(data, raw):
     selected = {e['id']: e for e in data['entries']}
     candidates = []
     for row in raw['results']:
-        if row['action'] not in {'update','replace','remove'} or row['limitations']:
+        if row['action'] not in {'update','replace','remove'} or row['blockers']:
             continue
         entry = selected[row['id']]
         candidate = dict(id=row['id'], entry=entry, proposal=row, queries=[], records=[], complete=True, errors=[])
         matches = {}
         for repo in repos:
-            for term in dict.fromkeys([entry['name'], entry['url']] + ([row['newUrl']] if row['newUrl'] else [])):
+            for term in dict.fromkeys([entry['name'], entry['url']] + ([row['newUrl']] if row['newUrl'] else []) + ([row['newName']] if row['newName'] else [])):
                 query = f'repo:{repo} "{term.replace(chr(34), " ")}" in:title,body,comments'
                 candidate['queries'].append(query)
                 try:

@@ -29,8 +29,22 @@ the listed implementation lost its relevant purpose/interface. Investigate legac
 branches and say what is and isn't known about them. Never infer their maintenance
 status from their existence. All suggestions require maintainer review.
 
+Check relevance, canonical identity, and factual description accuracy separately.
+Resolve HTTP redirects and verify the canonical repository name/owner using official
+metadata. Read raw manifests and relevant workspace members rather than relying only
+on rendered-page summaries. Compare concrete description claims with current docs:
+a confirmed screen-count or API-coverage mismatch warrants update even when the
+project remains relevant. Prefer durable concise wording over volatile counts.
+
 Return exactly one result per selected id and no others. Evidence records are your
 account of research, not independent verification. Use an empty evidence array
-and uncertain when no source could be read. Include limitations even when you have
-a tentative recommendation. newUrl/newDescription are only for update/replace;
-otherwise both must be null. Do not prepare patches. Return the attached schema.
+and uncertain when no source could be read. blockers are unresolved facts that
+could invalidate the SPECIFIC proposed edit (e.g. destination ownership uncertain,
+unverified successor, or ambiguous relevance). limitations are informational
+caveats that do not undermine that edit (e.g. did not run software, project alpha,
+future versions may change). Do not hide real uncertainty in limitations just to
+produce a patch. Use blockers=[] when the edit is supported despite caveats.
+A keep decision must not conceal a confirmed factual description or identity error.
+newName/newUrl/newDescription are only for update/replace; otherwise all are null.
+For a verified rename provide newName and canonical newUrl; deterministic code will
+move the entry within its existing list. Do not prepare patches. Return the schema.

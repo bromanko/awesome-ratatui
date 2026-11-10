@@ -84,12 +84,14 @@ def validate(data, raw):
                 raise ValueError('Invalid evidence source')
         if row['action'] != 'uncertain' and not row['evidence']:
             raise ValueError('A factual conclusion requires evidence')
-        for key in ['newUrl', 'newDescription']:
+        if not isinstance(row.get('blockers'), list) or any(not isinstance(x, str) or not x.strip() for x in row['blockers']):
+            raise ValueError('Missing or invalid proposal blockers')
+        for key in ['newName', 'newUrl', 'newDescription']:
             if row[key] is not None and not isinstance(row[key], str):
                 raise ValueError('Invalid proposed correction')
-        if row['action'] not in {'update', 'replace'} and any(row[k] is not None for k in ['newUrl', 'newDescription']):
+        if row['action'] not in {'update', 'replace'} and any(row[k] is not None for k in ['newName', 'newUrl', 'newDescription']):
             raise ValueError('Unexpected proposed correction')
-        if row['action'] in {'update', 'replace'} and not (row['newUrl'] or row['newDescription']):
+        if row['action'] in {'update', 'replace'} and not (row['newName'] or row['newUrl'] or row['newDescription']):
             raise ValueError('Missing proposed correction')
         if row['newUrl'] and not re.fullmatch(r'https?://[^\s]+', row['newUrl']):
             raise ValueError('Invalid proposed URL')
@@ -110,12 +112,19 @@ def render(data, raw, status):
         lines += ['## Entry ' + row['id'], '', '<pre>' + html.escape(
             names[row['id']] + '\n\n' + row['reason'] + '\n\n' +
             '\n'.join(s['url'] + '\n' + s['observation'] for s in row['evidence']) +
-            '\n\nUnresolved questions:\n' + ('\n'.join(row['limitations']) or 'None reported.') +
+            '\n\nBlocking uncertainties:\n' + ('\n'.join(row['blockers']) or 'None reported.') +
+            '\n\nInformational caveats:\n' + ('\n'.join(row['limitations']) or 'None reported.') +
             '\n\nRecommendation: ' + row['action'] +
-            '\nProposed URL: ' + (row['newUrl'] or 'None') +
+            '\nProposed name: ' + (row['newName'] or 'None') + '\nProposed URL: ' + (row['newUrl'] or 'None') +
             '\nProposed description: ' + (row['newDescription'] or 'None')) + '</pre>', '']
     return '\n'.join(lines)
 
+
+
+def patch_text(before, after):
+    chunks = difflib.unified_diff(before.splitlines(keepends=True), after.splitlines(keepends=True),
+                                 fromfile='a/README.md', tofile='b/README.md')
+    return ''.join(line if line.endswith('\n') else line + '\n\\ No newline at end of file\n' for line in chunks)
 
 
 def previews(data, raw, status):
@@ -132,7 +141,7 @@ def previews(data, raw, status):
     for row in results:
         if row['action'] not in {'update', 'replace', 'remove'}:
             continue
-        if row['limitations']:
+        if row['blockers']:
             held += 1
             continue
         entry = selected[row['id']]
@@ -143,6 +152,9 @@ def previews(data, raw, status):
         if row['action'] == 'remove':
             del lines[offset]
         else:
+            name = row['newName'] or entry['name']
+            if not name.strip() or name != name.strip() or any(c in name for c in '[]()<>\r\n\t'):
+                raise ValueError('Invalid entry name')
             url = row['newUrl'] or entry['url']
             description = row['newDescription'] or entry['description']
             if any(c in url for c in '()<>\r\n') or any(c in description for c in '\r\n'):
@@ -150,15 +162,29 @@ def previews(data, raw, status):
             if not description.strip() or description != description.strip():
                 raise ValueError('Correction description must be nonempty and trimmed')
             ending = '\r\n' if lines[offset].endswith('\r\n') else '\n' if lines[offset].endswith('\n') else ''
-            lines[offset] = f"- [{entry['name']}]({url}) - {description}" + ending
+            replacement = f"- [{name}]({url}) - {description}" + ending
+            if name != entry['name']:
+                start, end = offset, offset + 1
+                while start > 0 and ENTRY.fullmatch(lines[start-1].rstrip('\r\n')): start -= 1
+                while end < len(lines) and ENTRY.fullmatch(lines[end].rstrip('\r\n')): end += 1
+                peers = [ENTRY.fullmatch(lines[i].rstrip('\r\n')).group(1) for i in range(start,end) if i != offset]
+                if name.casefold() in [n.casefold() for n in peers]:
+                    raise ValueError('Rename would duplicate an entry name')
+                endings = ['\r\n' if line.endswith('\r\n') else '\n' if line.endswith('\n') else '' for line in lines[start:end]]
+                del lines[offset]
+                position = next((i for i in range(start,end-1) if ENTRY.fullmatch(lines[i].rstrip('\r\n')).group(1).casefold() > name.casefold()),end-1)
+                lines.insert(position,replacement)
+                lines[start:end] = [line.rstrip('\r\n') + ending for line, ending in zip(lines[start:end],endings)]
+            else:
+                lines[offset] = replacement
         updated = ''.join(lines)
         if updated == readme:
             continue
-        diff = ''.join(difflib.unified_diff(readme.splitlines(keepends=True),
-                       updated.splitlines(keepends=True), fromfile='a/README.md', tofile='b/README.md'))
+        diff = patch_text(readme,updated)
         title = f"{row['action'].capitalize()} {entry['name']} entry"
         body = (row['reason'] + '\n\nEvidence:\n' +
                 '\n'.join(source['url'] + ' — ' + source['observation'] for source in row['evidence']) +
+                '\n\nInformational caveats:\n' + ('\n'.join(row['limitations']) or 'None.') +
                 f"\n\nBased on catalog revision {data['catalogSha']}.\n"
                 'Proposed by an automated freshness review. A maintainer must verify the evidence and edit.\n'
                 'Validation and discussion checks are recorded below.\n')

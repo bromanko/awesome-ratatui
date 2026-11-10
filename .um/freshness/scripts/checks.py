@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import tarfile
 import tempfile
+from urllib.parse import urlsplit, urlunsplit
 
 
 def run(command, cwd, env, timeout=180):
@@ -23,7 +24,7 @@ def links(result, root):
     if data.get('total', 0) == 0 or data.get('unknown', 0):
         raise ValueError('Empty/incomplete link check')
     def urls(key):
-        return {row['url'].replace(root.as_uri(), 'file://CATALOG')
+        return {row['url'].replace(root.resolve().as_uri(), 'file://CATALOG').replace(root.as_uri(), 'file://CATALOG')
                 for rows in data.get(key, {}).values() for row in rows}
     errors = urls('error_map') | urls('timeout_map')
     if (data.get('errors',0) or data.get('timeouts',0)) and not errors:
@@ -32,11 +33,20 @@ def links(result, root):
                 successful=sorted(urls('success_map')), total=data['total'])
 
 
+def normalized_url(url):
+    parts = urlsplit(url)
+    return urlunsplit(parts._replace(path=parts.path or '/'))
+
+
 def compare_links(before, after, relevant):
+    before = {key: [normalized_url(url) for url in urls] for key, urls in before.items() if isinstance(urls,list)}
+    after = {key: [normalized_url(url) for url in urls] for key, urls in after.items() if isinstance(urls,list)}
+    relevant = [normalized_url(url) for url in relevant]
     inherited = set(before['errors']) & set(after['errors'])
     introduced = set(after['errors']) - set(before['errors'])
     affected = set(relevant) & (set(after['errors']) | set(after['excluded']))
-    return dict(passed=not (introduced or affected), introduced=sorted(introduced),
+    unverified = set(relevant) - set(after.get('successful', []))
+    return dict(passed=not (introduced or affected or unverified), unverified=sorted(unverified), introduced=sorted(introduced),
                 preexisting=sorted(inherited), affected=sorted(affected))
 
 
@@ -72,7 +82,7 @@ class Validator:
 
     def check(self, folder, label):
         commands = {'lint':['awesome-lint','README.md'], 'spelling':['typos','--config','typos.toml','README.md'],
-                    'links':['lychee','--no-progress','--format','json','--max-retries','0',
+                    'links':['lychee','--verbose','--no-progress','--format','json','--max-retries','0',
                              '--max-concurrency','10','--timeout','10','README.md']}
         results = {key:run(cmd,folder,self.env) for key,cmd in commands.items()}
         log = self.output / 'validation'
@@ -94,8 +104,7 @@ class Validator:
         # Verify only the exact intended README change occurred.
         changed = (folder/'README.md').read_text()
         import ci
-        expected = ''.join(__import__('difflib').unified_diff(self.readme.splitlines(True),changed.splitlines(True),
-                           fromfile='a/README.md',tofile='b/README.md'))
+        expected = ci.patch_text(self.readme,changed)
         if expected != proposal['patch']:
             return dict(passed=False,reason='Applied change differs from proposed patch.')
         after = self.check(folder,'entry-'+proposal['id'])
@@ -104,7 +113,8 @@ class Validator:
         try:
             before_links = links(self.before['links'],self.base)
             after_links = links(after['links'],folder)
-            relevant = [e['url'] for e in ci.entries(changed) if e['name'] == entry['name']]
+            old_lines = {e['line'] for e in ci.entries(self.readme)}
+            relevant = [e['url'] for e in ci.entries(changed) if e['line'] not in old_lines]
             result['links'] = compare_links(before_links,after_links,relevant)
             result['passed'] = all(after[k]['exitCode']==0 for k in ('lint','spelling')) and result['links']['passed']
             result['reason'] = ('Checks passed; existing unrelated link failures are listed separately.' if result['passed']

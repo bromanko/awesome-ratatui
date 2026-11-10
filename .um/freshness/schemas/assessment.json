@@ -20,7 +20,9 @@
           "evidence",
           "limitations",
           "newUrl",
-          "newDescription"
+          "newDescription",
+          "blockers",
+          "newName"
         ],
         "properties": {
           "id": {
@@ -83,6 +85,23 @@
               "string",
               "null"
             ]
+          },
+          "blockers": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1200
+            }
+          },
+          "newName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 120
           }
         }
       }

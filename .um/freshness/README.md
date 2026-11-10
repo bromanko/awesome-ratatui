@@ -7,7 +7,12 @@ copy. It never opens correction PRs, comments, merges, or edits the working chec
 
 ## What a run produces
 
-Each entry has findings, evidence URLs, unresolved questions and a recommendation.
+Each entry has findings, evidence URLs, blocking uncertainties, informational caveats,
+and a recommendation. Only proposal-specific blockers prevent a correction from
+reaching history review; caveats remain visible in the report and proposed PR body.
+Canonical names, URLs and concrete description claims are checked separately from
+continued relevance. Verified renames change the display name and move only that
+entry within its existing contiguous list; other entries retain their order.
 For each proposed correction, the summary adds:
 
 - Prior-discussion status, search queries, reasons and cited issues/PRs.
@@ -70,6 +75,8 @@ Validation uses awesome-lint 2.3.0 with a dependency lock, typos 1.51.1 and Lych
 0.24.2 with verified release checksums. Lint/spelling failures hold the edit. New
 link failures, failures affecting the changed entry, and excluded destinations hold
 it; unrelated failures present in both versions are reported separately. Missing
+per-link success evidence also holds the edit, including after a rename. Lychee
+runs with detailed output so the destination must be positively verified. Missing
 or timed-out checkers hold the edit. Checks are bounded to 180 seconds each. Failed
 edits are withheld, without speculative automatic repair or a model retry loop.
 Validation does not prove the factual merits of a removal or replacement.
@@ -86,7 +93,7 @@ This remains a manual pilot, with no scheduler or persisted coverage. The origin
 586-entry snapshot has 196 flat slices (0 through 195); catalog edits can shift
 those slices. Keep a manual record of reviewed entries during the trial.
 
-One GitHub job uses published UM 0.72.1, official Claude Code 2.1.284 and Sonnet 5
+One GitHub job uses published UM 0.72.1, official Claude Code 2.1.284 and Opus 5.5
 at medium effort. The action is pinned to
 `3b5d29379bc349df8d95b29b599e71701aa1d017`. Both agent stages are part of the same run; an empty history packet requires no
 additional research. The job has a 45-minute timeout and no
