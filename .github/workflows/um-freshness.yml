@@ -1,4 +1,4 @@
-name: UM freshness review (dry run)
+name: UM freshness review
 on:
   workflow_dispatch:
     inputs:

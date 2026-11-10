@@ -15,7 +15,7 @@ no recurring schedule, coverage checkpoint or automatic advancement is installed
 2. Configure the `awesome-ratatui-review` environment with required reviewers and
    an `ANTHROPIC_API_KEY` environment secret.
 3. Set repository variable `UM_FRESHNESS_ENABLED=true`.
-4. Manually run **UM freshness review (dry run)** on the reviewed branch, supplying
+4. Manually run **UM freshness review** on the reviewed branch, supplying
    a zero-based slice number. Read the research in the Actions summary.
 
 No fork-name restriction is imposed. The collector uses the selected checked-out
