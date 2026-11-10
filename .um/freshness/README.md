@@ -21,22 +21,41 @@ patches, collected discussion records and validation logs. Each proposal changes
 entry, following the contribution guidelines. Maintainers still verify the evidence
 and decide whether to open a correction PR.
 
-## Workflow
+## One UM workflow
 
-1. Capture the checked-out README, contribution rules and commit identity; select
-   a zero-based group of up to three entries.
-2. Claude investigates official documentation, manifests, workspace members and
-   legacy versions, returning structured findings and proposed corrections.
-3. Python searches upstream and the current fork by project name, old URL and
-   proposed URL. It reads likely issues/PRs, comments, reviews and changed-file patches.
-4. A second Claude step evaluates whether those records concern the same correction.
-   An open duplicate, unresolved rejection, already-merged correction or incomplete
-   investigation holds the proposal. Related discussions are linked as context.
-5. Generate each one-entry diff from the pinned entry. Apply it in a temporary copy
-   and check that the resulting diff matches. Run awesome-lint, typos and Lychee on
-   the original and edited README, using the pinned repository configuration.
-6. Recheck the current upstream README before exporting a ready patch. Changes or
-   an unavailable recheck hold it. Publish the report and downloadable files.
+The single `workflow.yaml` declares seven nodes, with typed output references
+creating their dependency edges:
+
+```mermaid
+flowchart TD
+  prepareCatalog --> investigateEntries
+  investigateEntries --> collectHistory
+  collectHistory --> reviewHistory
+  reviewHistory --> buildCorrections
+  buildCorrections --> validateCorrections
+  validateCorrections --> renderPreview
+```
+
+- **prepareCatalog** captures the checked-out catalog revision and selected entries.
+- **investigateEntries** researches official sources and returns structured findings.
+- **collectHistory** retrieves matching issue/PR bodies, comments, reviews and diffs.
+- **reviewHistory** assesses duplicates, related context, rejections and merged fixes.
+- **buildCorrections** constructs one-entry patches against the pinned catalog.
+- **validateCorrections** applies edits in disposable copies, runs baseline/edited
+  checks, applies history holds, and rechecks catalog freshness.
+- **renderPreview** renders the decisions and exports the report plus proposals ZIP.
+
+The five command stages read captured inputs from UM_STEP_INPUTS; they do not read
+another stage's mutable output files. Validation logs are part of the declared
+validated output. The rendering step consumes those results without rerunning checks.
+UM owns stage ordering, failure propagation, retained outputs and final exports.
+If a required stage fails, downstream work is blocked and no final preview is exported.
+With no correction candidates, history review returns an empty review and later stages
+produce a research-only report. There is no separate history workflow.
+
+GitHub Actions installs the dependencies, invokes UM once, displays its exported
+report and uploads the exported proposals ZIP. Its job contains no research,
+history collection, patch-building or validation orchestration.
 
 Search caps are explicit: 30 results per query, 10 discussions per candidate,
 100 records per comments/reviews/files request (reaching that limit is treated as
@@ -69,26 +88,28 @@ those slices. Keep a manual record of reviewed entries during the trial.
 
 One GitHub job uses published UM 0.72.1, official Claude Code 2.1.284 and Sonnet 5
 at medium effort. The action is pinned to
-`3b5d29379bc349df8d95b29b599e71701aa1d017`. The history model step only runs when
-there are proposed changes to investigate. The job has a 45-minute timeout and no
+`3b5d29379bc349df8d95b29b599e71701aa1d017`. Both agent stages are part of the same run; an empty history packet requires no
+additional research. The job has a 45-minute timeout and no
 dollar cap. Provider usage is billable once enabled.
 
 GitHub permissions are read-only. Checkout does not persist credentials. The provider
-key is passed only to agent steps; the GitHub token goes to collection and validation.
+key and read-only GitHub token are explicitly admitted to the UM run and available
+to its steps. The token is passed under FRESHNESS_GITHUB_TOKEN; API commands map it
+to the GitHub CLI environment only when used.
 Agent tools remain available, with instructions prohibiting external writes and
 execution of project code. Those instructions are not an execution sandbox.
 
 ## Check and preview the integration
 
 The **Check UM freshness integration** PR check runs offline tests, exercises the
-real validation tools on an intentionally invalid fixture, and renders a clearly
+real validation tools on an intentionally invalid fixture, executes all seven UM
+stages with synthetic agent/network/check results, and renders a clearly
 labeled fictional preview. The preview's simulated checks are not live findings.
 Download `freshness-example` to inspect its example patch and PR description.
 
 ```sh
 python3 -m unittest discover -s .um/freshness/tests -v
 um workflow validate --source-root .um/freshness --json .um/freshness/workflow.yaml
-um workflow validate --source-root .um/freshness --json .um/freshness/history.yaml
 actionlint .github/workflows/um-freshness.yml .github/workflows/um-freshness-checks.yml
 ```
 

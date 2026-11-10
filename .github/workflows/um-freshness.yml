@@ -31,83 +31,43 @@ jobs:
         run: |
           curl -fsSL https://claude.ai/install.sh | bash -s 2.1.284
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: Prepare catalog slice
-        env:
-          SLICE: ${{ inputs.slice }}
-        run: >-
-          python3 .um/freshness/scripts/ci.py prepare
-          --repo . --slice "$SLICE" --output "$RUNNER_TEMP/um-freshness-input"
       - name: Install validation tools
         run: bash .um/freshness/checks/install.sh
       - name: Check API key
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: test -n "$ANTHROPIC_API_KEY" || { echo 'Configure ANTHROPIC_API_KEY in the protected environment.'; exit 1; }
-      - name: Investigate entries
+      - name: Run freshness workflow
         id: um
         uses: useful-machinery/run-action@3b5d29379bc349df8d95b29b599e71701aa1d017
         with:
           um-version: 0.72.1
           workflow: .um/freshness/workflow.yaml
           source-root: .um/freshness
-          execution-root: ${{ runner.temp }}/um-freshness-input
-          export: assessment
+          execution-root: ${{ github.workspace }}
+          export: report
           inputs: >-
-            {"packet":{"kind":"text","path":"${{ runner.temp }}/um-freshness-input/packet.json"}}
+            {"slice":{"kind":"text","value":${{ toJSON(inputs.slice) }}}}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      - name: Collect existing discussions
-        id: history
-        if: steps.um.outputs.export-state == 'available'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ASSESSMENT_PATH: ${{ steps.um.outputs.export-path }}
-        run: >-
-          python3 .um/freshness/scripts/ci.py history
-          --input-dir "$RUNNER_TEMP/um-freshness-input"
-          --assessment "$ASSESSMENT_PATH" --output "$RUNNER_TEMP/um-freshness-history"
-      - name: Review existing discussions
-        id: prior
-        if: steps.history.outputs.has_candidates == 'true'
-        uses: useful-machinery/run-action@3b5d29379bc349df8d95b29b599e71701aa1d017
-        with:
-          um-version: 0.72.1
-          workflow: .um/freshness/history.yaml
-          source-root: .um/freshness
-          execution-root: ${{ runner.temp }}/um-freshness-history
-          export: assessment
-          inputs: >-
-            {"packet":{"kind":"text","path":"${{ runner.temp }}/um-freshness-history/packet.json"}}
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      - name: Validate edits and prepare report
-        if: always() && steps.history.outcome == 'success'
-        env:
-          ASSESSMENT_PATH: ${{ steps.um.outputs.export-path }}
-          HISTORY_REVIEW: ${{ steps.prior.outputs.export-path }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          extra=()
-          if [ -n "$HISTORY_REVIEW" ] && [ -f "$HISTORY_REVIEW" ]; then
-            extra+=(--history-review "$HISTORY_REVIEW")
-          fi
-          python3 .um/freshness/scripts/ci.py finish \
-            --repo . --input-dir "$RUNNER_TEMP/um-freshness-input" \
-            --assessment "$ASSESSMENT_PATH" --output "$RUNNER_TEMP/um-freshness-report" \
-            --history-packet "$RUNNER_TEMP/um-freshness-history/packet.json" "${extra[@]}"
-      - name: Summarize result
+          FRESHNESS_GITHUB_TOKEN: ${{ github.token }}
+          FRESHNESS_REPOSITORY: ${{ github.repository }}
+      - name: Display preview
         if: always()
+        env:
+          REPORT_PATH: ${{ steps.um.outputs.export-path }}
+          REPORT_STATE: ${{ steps.um.outputs.export-state }}
         run: |
-          if [ -f "$RUNNER_TEMP/um-freshness-report/report.md" ]; then
-            cat "$RUNNER_TEMP/um-freshness-report/report.md" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$REPORT_STATE" = available ] && [ -f "$REPORT_PATH" ]; then
+            cat "$REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
           else
-            printf '%s\n' '## UM freshness review' 'No report was produced. Check the run steps for details.' >> "$GITHUB_STEP_SUMMARY"
+            printf '%s\n' '## UM freshness review' 'No preview was exported. See the UM run for the failed or blocked stage.' >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Save proposed changes
-        if: always() && steps.history.outcome == 'success'
+        if: steps.um.outputs.export-state == 'available'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: freshness-proposals
-          path: ${{ runner.temp }}/um-freshness-report/
+          path: .um/freshness/work/proposals.zip
           if-no-files-found: error
           retention-days: 14

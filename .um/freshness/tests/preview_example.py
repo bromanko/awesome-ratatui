@@ -45,6 +45,8 @@ if __name__ == '__main__':
                             links=dict(introduced=['https://example.com/new-clock'],preexisting=[]))
             return dict(passed=True, reason='Simulated: formatting, spelling, and destination passed; no real checks ran.',
                         links=dict(introduced=[], preexisting=['https://example.com/unrelated-outage']))
-    ci.write_report(data, raw, 'unchanged', Path(sys.argv[1]), demo=True,
-                    history_packet=dict(candidates=candidates),
-                    history_review=dict(reviews=reviews),validator=ExampleValidator())
+    proposals, note = ci.previews(data, raw, 'unchanged')
+    evaluated = ci.evaluate_proposals(data,proposals,dict(candidates=candidates),dict(reviews=reviews),
+                                     ExampleValidator(),lambda data:'unchanged')
+    ci.write_report(data,raw,'unchanged',Path(sys.argv[1]),demo=True,
+                    prepared=(proposals,note),evaluations=evaluated)

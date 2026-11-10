@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 """Select a pinned catalog slice and render an advisory report. No GitHub writes."""
-import argparse
 import base64
 import difflib
 import hashlib
 import html
 import json
-import os
 import history
-import checks
 from pathlib import Path
 import re
 import subprocess
@@ -56,9 +53,7 @@ def packet(repo, index):
 
 def freshness(data):
     try:
-        content = json.loads(subprocess.check_output(
-            ['gh', 'api', f'repos/{UPSTREAM}/contents/README.md?ref=main'],
-            text=True, stderr=subprocess.PIPE, timeout=30))
+        content = history.api(f'repos/{UPSTREAM}/contents/README.md', ref='main')
         current = base64.b64decode(content['content'], validate=False)
         return ('unchanged' if hashlib.sha256(current).hexdigest() == data['readmeHash']
                 else 'changed — review against the latest catalog before acting')
@@ -172,9 +167,31 @@ def previews(data, raw, status):
     return proposals, note
 
 
-def write_report(data, raw, status, output, demo=False, history_packet=None, history_review=None, validator=None):
+def evaluate_proposals(data, proposals, history_packet, history_review, validator, current_check):
+    candidates = {c['id']: c for c in history_packet['candidates']}
+    reviews = {c['id']: c for c in history_review['reviews']}
+    if len(reviews) != len(history_review['reviews']) or set(reviews) != set(candidates):
+        raise ValueError('History assessment must cover every candidate exactly once')
+    rows = {e['id']: e for e in data['entries']}
+    results = {}
+    for proposal in proposals:
+        candidate = candidates.get(proposal['id'])
+        allowed, note = (history.gate(candidate, reviews.get(proposal['id'])) if candidate
+                         else (False, 'History check not performed.'))
+        validation = (validator.validate(proposal, rows[proposal['id']]) if allowed
+                      else dict(passed=False, reason='Validation not run; history review must pass first.'))
+        ready = allowed and validation['passed']
+        if ready and current_check(data) != 'unchanged':
+            ready = False
+            validation.update(passed=False, reason='Catalog changed or could not be rechecked after validation.')
+        results[proposal['id']] = dict(ready=ready, note=note, history=candidate,
+                                      assessment=reviews.get(proposal['id']), validation=validation)
+    return results
+
+
+def write_report(data, raw, status, output, demo=False, prepared=None, evaluations=None):
     report = render(data, raw, status)
-    proposals, note = previews(data, raw, status)
+    proposals, note = prepared if prepared is not None else previews(data, raw, status)
     if demo:
         report = '# Example preview — synthetic test data\n\nNot a live finding or a proposed change to the real catalog.\n\n' + report
     report += '\n\n# Proposed pull requests\n\n' + note + '\n'
@@ -182,30 +199,20 @@ def write_report(data, raw, status, output, demo=False, history_packet=None, his
     # Clear previous proposals so retries cannot publish obsolete artifacts.
     for old in output.glob('entry-*.*'):
         old.unlink()
-    candidates = {c['id']: c for c in (history_packet or {}).get('candidates', [])}
-    reviews = {c['id']: c for c in (history_review or {}).get('reviews', [])}
-    rows = {e['id']: e for e in data['entries']}
-    if len(reviews) != len((history_review or {}).get('reviews', [])):
-        raise ValueError('Duplicate history assessment ids')
-    for proposal in proposals:
-        candidate = candidates.get(proposal['id'])
-        allowed, history_note = (history.gate(candidate, reviews.get(proposal['id'])) if candidate
-                                 else (False, 'History check not performed.'))
-        validation = (validator.validate(proposal, rows[proposal['id']]) if allowed and validator
-                      else dict(passed=False, reason='Validation not run; history review must pass first.'))
-        ready = allowed and validation['passed']
-        if ready and not demo and freshness(data) != 'unchanged':
-            ready = False
-            validation.update(passed=False, reason='Catalog changed or could not be rechecked after validation.')
-        details = dict(history=candidate, assessment=reviews.get(proposal['id']), validation=validation)
-        (output / ('entry-' + proposal['id'] + '.checks.json')).write_text(json.dumps(details,indent=2)+'\n')
+    for original in proposals:
+        proposal = dict(original)
+        result = (evaluations or {}).get(proposal['id'], dict(ready=False, note='History check not performed.',
+                       history=None, assessment=None, validation=dict(passed=False,reason='Checks not performed.')))
+        ready, history_note = result['ready'], result['note']
+        candidate, validation = result['history'], result['validation']
+        (output / ('entry-' + proposal['id'] + '.checks.json')).write_text(json.dumps(result,indent=2)+'\n')
         proposal['body'] += ('\nReview status: ' + ('Ready for maintainer review' if ready else 'Held') +
                              '\nPrior discussion: ' + history_note + '\nValidation: ' + validation['reason'] + '\n')
         report += '\n### ' + ('Ready for maintainer review' if ready else 'Held') + '\n'
         report += '<pre>' + html.escape(history_note + '\n' + json.dumps(validation,indent=2)) + '</pre>\n'
         if candidate:
             report += '<pre>' + html.escape('Searches:\n' + '\n'.join(candidate['queries']) +
-                        '\nReferences:\n' + '\n'.join((reviews.get(proposal['id']) or {}).get('references',[]))) + '</pre>\n'
+                        '\nReferences:\n' + '\n'.join((result['assessment'] or {}).get('references',[]))) + '</pre>\n'
         stem = 'entry-' + proposal['id']
         if ready:
             (output / (stem + '.patch')).write_text(proposal['patch'])
@@ -215,63 +222,3 @@ def write_report(data, raw, status, output, demo=False, history_packet=None, his
         fence = '`' * max(3, 1 + max([len(x) for x in re.findall(r'`+', proposal['patch'])] or [0]))
         report += fence + 'diff\n' + proposal['patch'] + fence + '\n'
     (output / 'report.md').write_text(report)
-
-
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    subs = parser.add_subparsers(dest='command', required=True)
-    pre = subs.add_parser('prepare')
-    pre.add_argument('--repo', type=Path, required=True)
-    pre.add_argument('--slice', type=int, required=True)
-    pre.add_argument('--output', type=Path, required=True)
-    post = subs.add_parser('finish')
-    post.add_argument('--input-dir', type=Path, required=True)
-    post.add_argument('--assessment', type=Path, required=True)
-    post.add_argument('--output', type=Path, required=True)
-    post.add_argument('--repo', type=Path, required=True)
-    post.add_argument('--history-packet', type=Path, required=True)
-    post.add_argument('--history-review', type=Path)
-    prior = subs.add_parser('history')
-    prior.add_argument('--input-dir', type=Path, required=True)
-    prior.add_argument('--assessment', type=Path, required=True)
-    prior.add_argument('--output', type=Path, required=True)
-    args = parser.parse_args()
-    if args.command == 'prepare':
-        data = packet(args.repo, args.slice)
-        encoded = json.dumps(data, ensure_ascii=False, indent=2)
-        if len(encoded.encode()) > 512 * 1024:
-            raise ValueError('Catalog packet exceeds 512 KiB')
-        args.output.mkdir(parents=True, exist_ok=True)
-        (args.output / 'packet.json').write_text(encoded + '\n')
-        print(f"Prepared slice {data['slice']} of {data['sliceCount']} at {data['catalogSha']}")
-    else:
-        data = json.loads((args.input_dir / 'packet.json').read_text())
-        if args.assessment.stat().st_size > 65536:
-            raise ValueError('Assessment exceeds 64 KiB')
-        raw = json.loads(args.assessment.read_text())
-        validate(data, raw)
-        if args.command == 'history':
-            collected = history.collect(data, raw)
-            args.output.mkdir(parents=True,exist_ok=True)
-            collected['assessment'] = raw
-            (args.output / 'packet.json').write_text(json.dumps(collected,indent=2)+'\n')
-            if os.environ.get('GITHUB_OUTPUT'):
-                with open(os.environ['GITHUB_OUTPUT'],'a') as target:
-                    target.write('has_candidates=' + str(bool(collected['candidates'])).lower() + '\n')
-        else:
-            collected = json.loads(args.history_packet.read_text())
-            if collected.get('catalogSha') != data['catalogSha'] or collected.get('assessment') != raw:
-                raise ValueError('History evidence does not match this assessment/snapshot')
-            reviewed = json.loads(args.history_review.read_text()) if args.history_review else None
-            if reviewed and {x['id'] for x in reviewed['reviews']} != {x['id'] for x in collected['candidates']}:
-                raise ValueError('History assessment must cover every candidate exactly once')
-            validator = checks.Validator(args.repo,data['catalogSha'],data['readme'],args.output)
-            try:
-                write_report(data, raw, freshness(data), args.output, history_packet=collected,
-                             history_review=reviewed, validator=validator)
-            finally:
-                validator.close()
-
-
-if __name__ == '__main__':
-    main()

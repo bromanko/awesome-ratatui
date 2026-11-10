@@ -134,9 +134,13 @@ class PreviewTests(unittest.TestCase):
                 return dict(passed=True,reason='Fixture passed')
         with tempfile.TemporaryDirectory() as tmp:
             output=Path(tmp)
+            proposals, note = ci.previews(self.data,self.raw,'unchanged')
+            evaluated = ci.evaluate_proposals(self.data,proposals,
+                dict(candidates=[dict(id='2',complete=True,errors=[],records=[],queries=[])]),
+                dict(reviews=[dict(id='2',status='clear',reason='Fixture',references=[])]),
+                Validator(),lambda data:'unchanged')
             ci.write_report(self.data,self.raw,'unchanged',output,demo=True,
-                history_packet=dict(candidates=[dict(id='2',complete=True,errors=[],records=[],queries=[])]),
-                history_review=dict(reviews=[dict(id='2',status='clear',reason='Fixture',references=[])]),validator=Validator())
+                            prepared=(proposals,note),evaluations=evaluated)
             self.assertTrue((output/'entry-2.patch').exists())
             self.assertIn('Ready for maintainer review',(output/'report.md').read_text())
 

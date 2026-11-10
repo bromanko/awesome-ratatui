@@ -12,7 +12,10 @@ def api(path, **fields):
     command = ['gh', 'api', '--method', 'GET', path]
     for key, value in fields.items():
         command += ['-f', f'{key}={value}']
-    return json.loads(subprocess.check_output(command, text=True, stderr=subprocess.PIPE, timeout=30))
+    env = dict(os.environ)
+    if env.get('FRESHNESS_GITHUB_TOKEN'):
+        env['GH_TOKEN'] = env['FRESHNESS_GITHUB_TOKEN']
+    return json.loads(subprocess.check_output(command, env=env, text=True, stderr=subprocess.PIPE, timeout=30))
 
 
 def listing(path):
@@ -50,7 +53,7 @@ def record(repo, item):
 
 def collect(data, raw):
     repos = list(REPOSITORIES)
-    fork = os.environ.get('GITHUB_REPOSITORY', '')
+    fork = os.environ.get('FRESHNESS_REPOSITORY', os.environ.get('GITHUB_REPOSITORY', ''))
     if re.fullmatch(r'[A-Za-z0-9_.-]+/awesome-ratatui', fork) and fork not in repos:
         repos.append(fork)
     selected = {e['id']: e for e in data['entries']}

@@ -47,9 +47,10 @@ class Validator:
         self.root = Path(self.temp.name)
         self.env = {k: os.environ[k] for k in ('PATH','LANG','SSL_CERT_FILE','NIX_SSL_CERT_FILE') if k in os.environ}
         self.env.update(HOME=str(self.root), GIT_CONFIG_GLOBAL='/dev/null', GIT_CONFIG_NOSYSTEM='1')
-        if os.environ.get('GH_TOKEN'):
-            self.env['github_token'] = os.environ['GH_TOKEN']
-            self.env['GITHUB_TOKEN'] = os.environ['GH_TOKEN']
+        token = os.environ.get('FRESHNESS_GITHUB_TOKEN', os.environ.get('GH_TOKEN'))
+        if token:
+            self.env['github_token'] = token
+            self.env['GITHUB_TOKEN'] = token
         self.archive = subprocess.check_output(['git','-C',str(self.repo),'archive',sha])
         self.before = None
 

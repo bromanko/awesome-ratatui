@@ -24,6 +24,26 @@ jobs:
         run: bash .um/freshness/checks/install.sh
       - name: Exercise real validation tools
         run: python3 .um/freshness/tests/check_tools.py
+      - name: Prepare UM graph integration test
+        run: python3 .um/freshness/tests/workflow_fixture.py generate
+      - name: Run all seven UM stages with synthetic results
+        id: graph
+        uses: useful-machinery/run-action@3b5d29379bc349df8d95b29b599e71701aa1d017
+        with:
+          um-version: 0.72.1
+          workflow: .um/freshness/workflow-test.yaml
+          source-root: .um/freshness
+          execution-root: ${{ github.workspace }}
+          export: report
+          inputs: '{"slice":{"kind":"text","value":"0"}}'
+      - name: Verify UM exports
+        env:
+          REPORT_PATH: ${{ steps.graph.outputs.export-path }}
+          REPORT_STATE: ${{ steps.graph.outputs.export-state }}
+        run: |
+          test "$REPORT_STATE" = available
+          test -s "$REPORT_PATH"
+          python3 -m zipfile -t .um/freshness/work/proposals.zip
       - name: Render example preview
         run: |
           python3 .um/freshness/tests/preview_example.py "$RUNNER_TEMP/freshness-example"

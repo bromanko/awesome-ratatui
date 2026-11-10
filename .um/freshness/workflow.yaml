@@ -1,10 +1,12 @@
 schemaVersion: 1
-description: Advisory semantic freshness investigation for awesome-ratatui.
+description: Investigate catalog freshness, review history, validate corrections and produce a preview.
 inputs:
-  packet:
+  slice:
     kind: text
 environmentPassthrough:
   - ANTHROPIC_API_KEY
+  - FRESHNESS_GITHUB_TOKEN
+  - FRESHNESS_REPOSITORY
 agentProfiles:
   auditor:
     harness:
@@ -13,7 +15,19 @@ agentProfiles:
         model: claude-sonnet-5
         effort: medium
 steps:
-  assess:
+  prepareCatalog:
+    kind: cmd
+    inputs:
+      slice:
+        ref: inputs.slice
+    command:
+      argv: [python3, .um/freshness/scripts/stages.py, prepare]
+    outputs:
+      catalog:
+        kind: text
+        from: path
+        path: .um/freshness/work/catalog.json
+  investigateEntries:
     kind: agent
     agent:
       profile: auditor
@@ -21,12 +35,91 @@ steps:
       message:
         text:
           - file: schemas/assessment.json
-          - ref: inputs.packet
+          - ref: outputs.prepareCatalog.catalog
     outputs:
       assessment:
         kind: json
         from: agent_result
         schema: schemas/assessment.json
+  collectHistory:
+    kind: cmd
+    inputs:
+      catalog:
+        ref: outputs.prepareCatalog.catalog
+      assessment:
+        ref: outputs.investigateEntries.assessment
+    command:
+      argv: [python3, .um/freshness/scripts/stages.py, collectHistory]
+    outputs:
+      history:
+        kind: text
+        from: path
+        path: .um/freshness/work/history.json
+  reviewHistory:
+    kind: agent
+    agent:
+      profile: auditor
+      systemPrompt: prompts/history.md
+      message:
+        text:
+          - file: schemas/history.json
+          - ref: outputs.collectHistory.history
+    outputs:
+      review:
+        kind: json
+        from: agent_result
+        schema: schemas/history.json
+  buildCorrections:
+    kind: cmd
+    inputs:
+      catalog:
+        ref: outputs.prepareCatalog.catalog
+      assessment:
+        ref: outputs.investigateEntries.assessment
+      history:
+        ref: outputs.collectHistory.history
+      review:
+        ref: outputs.reviewHistory.review
+    command:
+      argv: [python3, .um/freshness/scripts/stages.py, buildCorrections]
+    outputs:
+      corrections:
+        kind: json
+        from: path
+        path: .um/freshness/work/corrections.json
+        schema: schemas/corrections.json
+  validateCorrections:
+    kind: cmd
+    inputs:
+      corrections:
+        ref: outputs.buildCorrections.corrections
+    command:
+      argv: [python3, .um/freshness/scripts/stages.py, validateCorrections]
+    outputs:
+      validated:
+        kind: json
+        from: path
+        path: .um/freshness/work/validated.json
+        schema: schemas/validated.json
+  renderPreview:
+    kind: cmd
+    inputs:
+      validated:
+        ref: outputs.validateCorrections.validated
+    command:
+      argv: [python3, .um/freshness/scripts/stages.py, renderPreview]
+    outputs:
+      report:
+        kind: text
+        from: path
+        path: .um/freshness/work/preview/report.md
+      proposals:
+        kind: file
+        from: path
+        path: .um/freshness/work/proposals.zip
+        mediaType: application/zip
 exports:
-  assessment:
-    ref: outputs.assess.assessment
+  report:
+    ref: outputs.renderPreview.report
+  proposals:
+    ref: outputs.renderPreview.proposals

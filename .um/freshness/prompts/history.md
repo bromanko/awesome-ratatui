@@ -21,3 +21,5 @@ fact with evidence URLs. Otherwise keep it rejected. For every non-clear status
 except incomplete cite the exact record or comment URLs supplied in the packet.
 If a candidate has complete=false, return incomplete. For clear, explain what
 was searched and why the records do not overlap. Report uncertainty honestly.
+
+If candidates is empty, return {"reviews": []} without research.
