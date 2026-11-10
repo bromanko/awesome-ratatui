@@ -1,0 +1,32 @@
+schemaVersion: 1
+description: Advisory semantic freshness investigation for awesome-ratatui.
+inputs:
+  packet:
+    kind: text
+environmentPassthrough:
+  - ANTHROPIC_API_KEY
+agentProfiles:
+  auditor:
+    harness:
+      kind: claude_code
+      config:
+        model: claude-sonnet-5
+        effort: medium
+steps:
+  assess:
+    kind: agent
+    agent:
+      profile: auditor
+      systemPrompt: prompts/auditor.md
+      message:
+        text:
+          - file: schemas/assessment.json
+          - ref: inputs.packet
+    outputs:
+      assessment:
+        kind: json
+        from: agent_result
+        schema: schemas/assessment.json
+exports:
+  assessment:
+    ref: outputs.assess.assessment

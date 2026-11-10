@@ -1,0 +1,71 @@
+name: UM freshness review (dry run)
+on:
+  workflow_dispatch:
+    inputs:
+      slice:
+        description: Zero-based group of three catalog entries to investigate
+        required: true
+        default: '0'
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: um-freshness
+  cancel-in-progress: false
+jobs:
+  review:
+    if: vars.UM_FRESHNESS_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: awesome-ratatui-review
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Install Claude
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash -s 2.1.284
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Prepare catalog slice
+        env:
+          SLICE: ${{ inputs.slice }}
+        run: >-
+          python3 .um/freshness/scripts/ci.py prepare
+          --repo . --slice "$SLICE" --output "$RUNNER_TEMP/um-freshness-input"
+      - name: Check API key
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: test -n "$ANTHROPIC_API_KEY" || { echo 'Configure ANTHROPIC_API_KEY in the protected environment.'; exit 1; }
+      - name: Investigate entries
+        id: um
+        uses: useful-machinery/run-action@3b5d29379bc349df8d95b29b599e71701aa1d017
+        with:
+          um-version: 0.72.1
+          workflow: .um/freshness/workflow.yaml
+          source-root: .um/freshness
+          execution-root: ${{ runner.temp }}/um-freshness-input
+          export: assessment
+          inputs: >-
+            {"packet":{"kind":"text","path":"${{ runner.temp }}/um-freshness-input/packet.json"}}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - name: Prepare report
+        if: steps.um.outputs.export-state == 'available'
+        env:
+          ASSESSMENT_PATH: ${{ steps.um.outputs.export-path }}
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 .um/freshness/scripts/ci.py finish
+          --input-dir "$RUNNER_TEMP/um-freshness-input"
+          --assessment "$ASSESSMENT_PATH" --output "$RUNNER_TEMP/um-freshness-report"
+      - name: Summarize result
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/um-freshness-report/report.md" ]; then
+            cat "$RUNNER_TEMP/um-freshness-report/report.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf '%s\n' '## UM freshness review' 'No report was produced. Check the run steps for details.' >> "$GITHUB_STEP_SUMMARY"
+          fi
