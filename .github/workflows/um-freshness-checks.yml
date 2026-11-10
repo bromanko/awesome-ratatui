@@ -3,7 +3,6 @@ on:
   pull_request:
     paths: ['.um/freshness/**', '.github/workflows/um-freshness*.yml']
   push:
-    branches: [main]
     paths: ['.um/freshness/**', '.github/workflows/um-freshness*.yml']
 permissions:
   contents: read
