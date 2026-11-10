@@ -13,7 +13,7 @@ caller: the workflow has no budget gate, scheduler, or rotating sample.
 2. Bootstrap reviews in manageable slices using the workflow and your locally
    authenticated Claude Code subscription, or an API key in GitHub Actions.
 3. Review the report and proposed `baseline.json`, then commit it as
-   `.um/freshness/baseline.json`. The baseline travels with the integration PR.
+   `.um/freshness/baseline.json`.
 4. Future runs compare live sources to that baseline and research only changes.
    Review and commit each proposed replacement baseline to retain new coverage.
 
@@ -33,8 +33,6 @@ um workflow run --source-root .um/freshness --execution-root . \
 
 Use a unique run directory outside the checkout. Review results before copying the
 baseline artifact; do not overwrite concurrent baseline updates from another run.
-The [initial catalog review](INITIAL-REVIEW.md) documents the included baseline,
-pending findings, and [entry-by-entry coverage](initial-review-coverage.csv).
 Only supported keeps with complete, stable snapshots enter the baseline; reviewed
 entries with unresolved findings or snapshot failures remain pending.
 
@@ -124,9 +122,9 @@ Checks are bounded to 180 seconds each. Missing tools, timeouts and failures hol
 edits; there is no speculative repair loop. Catalog freshness is rechecked before
 proposals are released. Validation does not prove factual correctness.
 
-## GitHub trial
+## GitHub setup
 
-1. Review and merge the integration into the fork's default branch when ready.
+1. Merge the workflow into the repository's default branch to enable manual runs.
 2. Configure `awesome-ratatui-review` with required reviewers and an
    `ANTHROPIC_API_KEY` environment secret.
 3. Set repository variable `UM_FRESHNESS_ENABLED=true`.
@@ -142,10 +140,8 @@ billable when models run. Local trials can use existing Claude Code authenticati
 ## Verification
 
 The PR check tests correction, keep-only and unchanged branches, plus the offline
-regressions and real positive/negative validation-tool fixtures. Synthetic previews
-are labeled; they are not live findings. See INCREMENTAL-TESTING.md for this revision's
-live routing evidence, INITIAL-REVIEW.md for the full initial research pass, and
-TESTING.md / CURRENT-SAMPLE.md for earlier evaluations.
+regressions and real positive/negative validation-tool fixtures. Integration tests
+use synthetic inputs and do not make model calls.
 
 ```sh
 python3 -m unittest discover -s .um/freshness/tests -v

@@ -72,7 +72,7 @@ class PreviewTests(unittest.TestCase):
     def setUp(self):
         import sys
         sys.path.insert(0, str(Path(__file__).parent))
-        from preview_example import example
+        from catalog_fixture import example
         self.data, self.raw = example()
 
     def test_patch_applies_and_preserves_other_entries(self):
