@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "needsResearch"
+  ],
+  "properties": {
+    "needsResearch": {
+      "type": "boolean"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

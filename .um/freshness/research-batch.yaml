@@ -1,0 +1,34 @@
+schemaVersion: 1
+description: Research one internally selected batch of at most 20 entries.
+inputs:
+  research:
+    kind: text
+environmentPassthrough:
+  - ANTHROPIC_API_KEY
+  - FRESHNESS_GITHUB_TOKEN
+  - FRESHNESS_REPOSITORY
+agentProfiles:
+  auditor:
+    harness:
+      kind: claude_code
+      config:
+        model: claude-opus-5-5
+        effort: medium
+steps:
+  investigate:
+    kind: agent
+    agent:
+      profile: auditor
+      systemPrompt: prompts/auditor.md
+      message:
+        text:
+          - file: schemas/assessment.json
+          - ref: inputs.research
+    outputs:
+      assessment:
+        kind: json
+        from: agent_result
+        schema: schemas/assessment.json
+exports:
+  assessment:
+    ref: outputs.investigate.assessment
