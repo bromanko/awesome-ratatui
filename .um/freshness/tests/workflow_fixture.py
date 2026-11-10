@@ -7,6 +7,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 import ci
 import stages
 import catalog
+import research
 
 
 def generate():
@@ -32,6 +33,12 @@ def generate():
         path: .um/freshness/work/fixture-{output}.json
         schema: schemas/{schema}.json
 '''
+        if name=='investigateEntries':
+            replacement += '''      usage:
+        kind: text
+        from: path
+        path: .um/freshness/work/research-model-receipt.json
+'''
         if name=='reviewHistory':
             replacement += '''      usage:
         kind: text
@@ -55,12 +62,17 @@ class FixtureValidator:
 def run(stage):
     if stage=='agentAssessment':
         data=stages.obj('catalog')
-        rows=[dict(id=e['id'],action='keep',reason='Synthetic control.',
-                   evidence=[dict(url='https://example.com',observation='Synthetic evidence, not live research.')],
-                   limitations=[], blockers=[], newName=None,newUrl=None,newDescription=None) for e in data['entries']]
-        if data.get('fixtureMode') == 'correction':
-            rows[0].update(action='update',newDescription=data['entries'][0]['description']+' Synthetic fixture.')
-        stages.save('fixture-assessment.json',dict(results=rows))
+        def runner(batch):
+            assert len(batch['entries']) <= research.BATCH_SIZE
+            rows=[dict(id=e['id'],action='keep',reason='Synthetic control.',
+                       evidence=[dict(url='https://example.com',observation='Synthetic evidence, not live research.')],
+                       limitations=[], blockers=[], newName=None,newUrl=None,newDescription=None) for e in batch['entries']]
+            if data.get('fixtureMode') == 'correction' and rows[0]['id'] == data['entries'][0]['id']:
+                rows[0].update(action='update',newDescription=data['entries'][0]['description']+' Synthetic fixture.')
+            return dict(results=rows), dict(entryIds=[r['id'] for r in rows],usage=[])
+        assessment, receipt = research.investigate(catalog.research_packet(data), runner=runner)
+        stages.save('fixture-assessment.json', assessment)
+        stages.save('research-model-receipt.json', receipt)
     elif stage=='agentReview':
         packet=stages.obj('history')
         stages.save('history-model-receipt.json', {})
@@ -74,14 +86,14 @@ def run(stage):
                 for r in assessment['results'] if r['action']!='keep'])
         original_packet=ci.packet
         mode=sys.argv[2] if len(sys.argv)>2 else 'correction'
-        def packet(repo,index):
-            data=original_packet(repo,index)
+        def packet(repo):
+            data=original_packet(repo)
             data['fixtureMode']=mode
             return data
         snapshot=lambda entry:dict(complete=True,fingerprint='fixture',source={'kind':'fixture'})
         baseline=catalog.empty()
         if stage=='prepare' and mode=='unchanged':
-            data=original_packet(Path.cwd(),0)
+            data=original_packet(Path.cwd())
             for entry in data['entries']:
                 baseline['entries'][catalog.key(entry)]=dict(claim=catalog.claim(entry,data['contributionRules']),
                     snapshot=snapshot(entry),reviewedAt='fixture',assessment={'action':'keep'})

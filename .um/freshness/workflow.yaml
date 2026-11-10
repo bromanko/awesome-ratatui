@@ -1,25 +1,12 @@
 schemaVersion: 1
 description: Compare saved source evidence, investigate changed entries, and preview checked corrections and baseline updates.
-inputs:
-  slice:
-    kind: text
 environmentPassthrough:
   - ANTHROPIC_API_KEY
   - FRESHNESS_GITHUB_TOKEN
   - FRESHNESS_REPOSITORY
-agentProfiles:
-  auditor:
-    harness:
-      kind: claude_code
-      config:
-        model: claude-opus-5-5
-        effort: medium
 steps:
   prepareCatalog:
     kind: cmd
-    inputs:
-      slice:
-        ref: inputs.slice
     command:
       argv: [python3, .um/freshness/scripts/stages.py, prepare]
     outputs:
@@ -37,23 +24,26 @@ steps:
         path: .um/freshness/work/decision.json
         schema: schemas/decision.json
   investigateEntries:
-    kind: agent
+    kind: cmd
     condition:
       equals:
         - {ref: outputs.prepareCatalog.decision, pointer: /needsResearch}
         - {value: true}
-    agent:
-      profile: auditor
-      systemPrompt: prompts/auditor.md
-      message:
-        text:
-          - file: schemas/assessment.json
-          - ref: outputs.prepareCatalog.research
+    inputs:
+      research:
+        ref: outputs.prepareCatalog.research
+    command:
+      argv: [python3, .um/freshness/scripts/stages.py, investigateEntries]
     outputs:
       assessment:
         kind: json
-        from: agent_result
+        from: path
+        path: .um/freshness/work/assessment.json
         schema: schemas/assessment.json
+      usage:
+        kind: text
+        from: path
+        path: .um/freshness/work/research-model-receipt.json
   collectHistory:
     kind: cmd
     condition:
@@ -108,6 +98,8 @@ steps:
         ref: outputs.collectHistory.history
       review:
         ref: outputs.reviewHistory.review
+      researchUsage:
+        ref: outputs.investigateEntries.usage
       historyUsage:
         ref: outputs.reviewHistory.usage
     command:

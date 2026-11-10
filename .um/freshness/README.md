@@ -10,24 +10,23 @@ caller: the workflow has no budget gate, scheduler, or rotating sample.
 1. Build a source inventory without a model, if desired:
    `python3 .um/freshness/scripts/catalog.py`. This writes
    `.um/freshness/work/inventory.json`. Observations are **not** completed reviews.
-2. Bootstrap reviews in manageable slices using the workflow and your locally
-   authenticated Claude Code subscription, or an API key in GitHub Actions.
+2. Run the workflow with locally authenticated Claude Code, or an API key in
+   GitHub Actions. It scans the entire catalog and researches selected entries
+   in sequential batches of at most 20.
 3. Review the report and proposed `baseline.json`, then commit it as
    `.um/freshness/baseline.json`.
 4. Future runs compare live sources to that baseline and research only changes.
    Review and commit each proposed replacement baseline to retain new coverage.
 
-The input `slice` accepts a zero-based group of three catalog entries, or `all` for
-whole-catalog comparison. Start with numbered slices when bootstrapping: `all` on a
-missing or partial baseline sends every successfully fetched, unreviewed entry to
-the model in one batch. Large initial batches may exceed the model's capacity.
+Every run compares the whole catalog. There is no entry-count or slice selector.
+Only new entries, changed claims, or changed watched sources enter research batches.
 A baseline is optional; its absence means entries need an initial review.
-Numbered slices follow current README order. Baseline identities use URL and section,
+Baseline identities use URL and section,
 so insertion of another entry and line-number shifts do not trigger reanalysis.
 
 ```sh
 um workflow run --source-root .um/freshness --execution-root . \
-  --run-dir /tmp/ratatui-review-unique --input-text slice 1 --json \
+  --run-dir /tmp/ratatui-review-unique --json \
   .um/freshness/workflow.yaml
 ```
 
@@ -80,7 +79,12 @@ corrections, the history stage returns an empty review without starting Claude a
 validation performs no checker work. Research receives selected entries, source
 fingerprints, previous reviews, and contribution rules rather than the full catalog.
 
-Research is a native UM agent using Opus 5.5 at medium effort. History review uses
+The research stage runs the native UM agent workflow in `research-batch.yaml` once
+per batch, using Opus 5.5 at medium effort. UM 0.72.1 has no dynamic loop node; the
+command stage batches the selected entries and verifies exact coverage before
+combining their results. A failed or incomplete batch fails the run rather than
+publishing a partial review. Batch usage receipts are included in the artifacts.
+History review uses
 Claude Code with the same model and effort inside its command stage, with tools
 disabled: it interprets the collected discussion records. This permits an empty
 packet to return a typed result without a model call. UM 0.72.1 requires all referenced
@@ -128,13 +132,14 @@ proposals are released. Validation does not prove factual correctness.
 2. Configure `awesome-ratatui-review` with required reviewers and an
    `ANTHROPIC_API_KEY` environment secret.
 3. Set repository variable `UM_FRESHNESS_ENABLED=true`.
-4. Run **UM freshness review** on a reviewed branch with the chosen slice or `all`.
+4. Run **UM freshness review** on a reviewed branch. No inputs are needed; it
+   compares the entire catalog automatically.
 
 GitHub permissions are read-only and checkout does not persist credentials.
 `FRESHNESS_GITHUB_TOKEN` supplies authenticated source and history requests. Research
 agents retain normal tools, with instructions prohibiting external writes and
 execution of project code; those instructions are not an execution sandbox.
-The job uses UM 0.72.1, Claude Code 2.1.284, and a 45-minute timeout. Provider usage is
+The job uses UM 0.72.1, Claude Code 2.1.284, and a 180-minute timeout. Provider usage is
 billable when models run. Local trials can use existing Claude Code authentication.
 
 ## Verification

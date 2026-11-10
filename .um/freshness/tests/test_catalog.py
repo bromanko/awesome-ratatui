@@ -72,7 +72,7 @@ class CatalogTests(unittest.TestCase):
         self.assertFalse(result['entries'])
         self.assertEqual(progress['pending'],['Tool'])
 
-    def test_unrelated_completed_reviews_survive_slice_update(self):
+    def test_unrelated_completed_reviews_survive_other_entry_updates(self):
         baseline=self.baseline()
         other=copy.deepcopy(self.data)
         other['entries'][0]['url']='https://github.com/example/other'

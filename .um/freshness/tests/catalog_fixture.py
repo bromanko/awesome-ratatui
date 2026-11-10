@@ -12,7 +12,7 @@ def example():
               '- [Sample Tasks](https://example.com/tasks) - A terminal task manager.\n')
     data = dict(repository=ci.UPSTREAM, catalogSha='0'*40, readme=readme,
                 readmeHash=hashlib.sha256(readme.encode()).hexdigest(),
-                entries=ci.entries(readme), slice=0, sliceCount=1)
+                entries=ci.entries(readme))
     rows = [dict(id='2', action='update', reason='Fictional example: official documentation lists a new project URL.',
                  evidence=[dict(url='https://example.com/notes', observation='Synthetic evidence of a move; no source was fetched.')],
                  limitations=[], blockers=[], newName=None, newUrl='https://example.com/terminal-notes', newDescription=None),

@@ -13,7 +13,7 @@ spec.loader.exec_module(ci)
 
 class FreshnessTests(unittest.TestCase):
     def setUp(self):
-        self.data = dict(entries=[dict(id='4', name='Example')], catalogSha='a'*40, slice=0, sliceCount=1, readmeHash='hash')
+        self.data = dict(entries=[dict(id='4', name='Example')], catalogSha='a'*40, readmeHash='hash')
         self.row = dict(id='4', action='keep', reason='Official docs describe a TUI.',
                         evidence=[dict(url='https://example.com', observation='Terminal interface')],
                         limitations=[], blockers=[], newName=None, newUrl=None, newDescription=None)
@@ -26,12 +26,13 @@ class FreshnessTests(unittest.TestCase):
     def test_unknown_entry_format_fails(self):
         with self.assertRaises(ValueError): ci.entries('- [Broken](relative) - Text.')
 
-    def test_out_of_range_slice_fails(self):
-        with patch.object(ci, 'git', side_effect=['a'*40, '- [A](https://a.example) - TUI.', 'Rules']):
-            with self.assertRaises(ValueError): ci.packet(Path('.'), 1)
-
-    def test_negative_slice_fails(self):
-        with self.assertRaises(ValueError): ci.packet(Path('.'), -1)
+    def test_packet_always_covers_entire_catalog(self):
+        readme = '\n'.join(f'- [Tool {i}](https://example.com/{i}) - TUI.' for i in range(47))
+        with patch.object(ci, 'git', side_effect=['a'*40, readme, 'Rules']):
+            data = ci.packet(Path('.'))
+        self.assertEqual(len(data['entries']), 47)
+        self.assertEqual(data['entries'][-1]['name'], 'Tool 46')
+        self.assertNotIn('slice', data)
 
     def test_exact_coverage(self):
         for rows in [[], [self.row, self.row], [dict(self.row, id='other')]]:

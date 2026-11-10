@@ -11,6 +11,7 @@ import history
 import checks
 import catalog
 import subprocess
+import research
 
 WORK = Path('.um/freshness/work')
 
@@ -31,14 +32,17 @@ def save(name, data):
 def main(stage):
     if stage == 'prepare':
         if WORK.exists(): shutil.rmtree(WORK)
-        scope = value('slice').strip()
-        data = ci.packet(Path.cwd(), 'all' if scope == 'all' else int(scope))
+        data = ci.packet(Path.cwd())
         data = catalog.prepare(data, catalog.load())
         save('decision.json', dict(needsResearch=bool(data['entries'])))
         save('research.json', catalog.research_packet(data))
         if len(json.dumps(data).encode()) > 16 * 1024 * 1024:
             raise ValueError('Catalog packet exceeds 16 MiB')
         save('catalog.json',data)
+    elif stage == 'investigateEntries':
+        assessment, receipt = research.investigate(obj('research'))
+        save('assessment.json', assessment)
+        save('research-model-receipt.json', receipt)
     elif stage == 'collectHistory':
         data, assessment = obj('catalog'), obj('assessment')
         ci.validate(data,assessment)
@@ -80,7 +84,7 @@ def main(stage):
         status = ci.freshness(data)
         proposals, note = ci.previews(data,assessment,status)
         save('corrections.json',dict(catalog=data, assessment=assessment, history=collected,
-             review=reviewed, status=status, proposals=proposals, note=note, historyUsage=obj('historyUsage')))
+             review=reviewed, status=status, proposals=proposals, note=note, historyUsage=obj('historyUsage'), researchUsage=obj('researchUsage')))
     elif stage == 'validateCorrections':
         bundle = obj('corrections')
         log_dir = WORK/'checks'
@@ -118,6 +122,8 @@ def main(stage):
         ci.write_report(bundle['catalog'],bundle['assessment'],bundle['status'],output,
                         prepared=(bundle['proposals'],bundle['note']),evaluations=bundle['evaluations'],progress=progress)
         (output/'baseline.json').write_text(json.dumps(baseline, indent=2)+'\n')
+        if bundle.get('researchUsage'):
+            (output/'research-model-receipt.json').write_text(json.dumps(bundle['researchUsage'], indent=2)+'\n')
         if bundle.get('historyUsage'):
             (output/'history-model-receipt.json').write_text(json.dumps(bundle['historyUsage'], indent=2)+'\n')
         for name, content in bundle['logs'].items():

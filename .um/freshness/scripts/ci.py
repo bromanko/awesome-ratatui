@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Select a pinned catalog slice and render an advisory report. No GitHub writes."""
+"""Read the pinned catalog and render an advisory report. No GitHub writes."""
 import base64
 import difflib
 import hashlib
@@ -35,20 +35,13 @@ def entries(readme):
     return result
 
 
-def packet(repo, index):
-    if index != 'all' and (type(index) is not int or index < 0):
-        raise ValueError('Slice must be a nonnegative integer or all')
+def packet(repo):
     sha = git(repo, 'rev-parse', 'HEAD').strip()
     readme = git(repo, 'show', f'{sha}:README.md')
     rules = git(repo, 'show', f'{sha}:contributing.md')
-    catalog = entries(readme)
-    selected = catalog if index == 'all' else catalog[index * 3:(index + 1) * 3]
-    if not selected:
-        raise ValueError(f'Slice out of range: choose 0–{(len(catalog)-1)//3}')
     return dict(repository=UPSTREAM, catalogSha=sha,
                 readmeHash=hashlib.sha256(readme.encode()).hexdigest(),
-                slice=index, sliceCount=(len(catalog)+2)//3,
-                entries=selected, readme=readme, contributionRules=rules)
+                entries=entries(readme), readme=readme, contributionRules=rules)
 
 
 def freshness(data):
@@ -104,7 +97,7 @@ def render(data, raw, status):
     lines = ['# Freshness research', '', 'Advisory only; every suggested change requires maintainer review.',
              'No list edits, PRs, comments, or reviews were submitted.', '',
              f"Catalog revision: `{data['catalogSha']}`",
-             ("Scope: entire catalog" if data['slice'] == 'all' else f"Slice: {data['slice']} of {data['sliceCount']} (zero-based)"),
+             "Scope: entire catalog",
              'Catalog recheck: ' + status, '',
              'Sources below are agent-reported observations, not independent verification.', '']
     # Treat source/model strings as plain text, preventing injected Markdown/HTML.

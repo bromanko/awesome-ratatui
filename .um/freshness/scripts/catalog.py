@@ -105,13 +105,17 @@ def load(path=BASELINE):
 
 
 def prepare(data, baseline, fetch=None):
-    fetch = fetch or snapshot
+    if fetch is None:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            observations = list(pool.map(snapshot, data['entries']))
+    else:
+        observations = [fetch(entry) for entry in data['entries']]
     selected, unchanged, pending, snapshots = [], [], [], {}
-    for entry in data['entries']:
+    for entry, current in zip(data['entries'], observations):
         identity = key(entry)
         if identity in snapshots:
             raise ValueError('Duplicate catalog URL in the same section')
-        current = fetch(entry)
         snapshots[identity] = current
         previous = baseline['entries'].get(identity)
         reason = ('fetch-incomplete' if not current['complete'] else
@@ -140,7 +144,7 @@ def advance(data, assessment, fetch=None):
     """Only verified keeps advance. Corrections and uncertainty remain pending.
 
     Re-fetch reviewed evidence to avoid acknowledging a change made during research.
-    Existing unrelated baseline records are preserved for separately reviewed slices.
+    Existing unrelated baseline records are preserved when other entries are reviewed.
     """
     fetch = fetch or snapshot
     ci.validate(data, assessment)
@@ -164,10 +168,10 @@ def advance(data, assessment, fetch=None):
     return result, dict(resolved=resolved, pending=pending)
 
 
-def inventory(repo, scope, output):
+def inventory(repo, output):
     """Build an evidence inventory without calling a model or approving entries."""
     from concurrent.futures import ThreadPoolExecutor
-    data = ci.packet(repo, scope)
+    data = ci.packet(repo)
     with ThreadPoolExecutor(max_workers=4) as pool:
         snapshots = list(pool.map(snapshot, data['entries']))
     result = dict(version=VERSION, catalogSha=data['catalogSha'],
@@ -184,7 +188,6 @@ def inventory(repo, scope, output):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--scope', default='all', help='all or a zero-based group of three entries')
     parser.add_argument('--output', type=Path, default=Path('.um/freshness/work/inventory.json'))
     args = parser.parse_args()
-    inventory(Path.cwd(), 'all' if args.scope == 'all' else int(args.scope), args.output)
+    inventory(Path.cwd(), args.output)

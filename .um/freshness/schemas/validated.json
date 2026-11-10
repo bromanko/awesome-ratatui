@@ -35,6 +35,9 @@
     },
     "historyUsage": {
       "type": "object"
+    },
+    "researchUsage": {
+      "type": "object"
     }
   },
   "required": [

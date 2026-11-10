@@ -1,12 +1,6 @@
 name: UM freshness review
 on:
   workflow_dispatch:
-    inputs:
-      slice:
-        description: Zero-based group of three entries, or all to scan the whole catalog
-        required: true
-        default: '0'
-        type: string
 permissions:
   contents: read
   issues: read
@@ -18,7 +12,7 @@ jobs:
   review:
     if: vars.UM_FRESHNESS_ENABLED == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 180
     environment: awesome-ratatui-review
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -45,8 +39,6 @@ jobs:
           workflow: .um/freshness/workflow.yaml
           source-root: .um/freshness
           execution-root: ${{ github.workspace }}
-          inputs: >-
-            {"slice":{"kind":"text","value":${{ toJSON(inputs.slice) }}}}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           FRESHNESS_GITHUB_TOKEN: ${{ github.token }}

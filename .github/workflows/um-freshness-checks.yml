@@ -36,7 +36,8 @@ jobs:
           workflow: .um/freshness/workflow-test.yaml
           source-root: .um/freshness
           execution-root: ${{ github.workspace }}
-          inputs: '{"slice":{"kind":"text","value":"0"}}'
+      - name: Verify native research batch exports
+        run: python3 .um/freshness/tests/check_research.py
       - name: Verify UM exports
         run: |
           test -s .um/freshness/work/preview/report.md
