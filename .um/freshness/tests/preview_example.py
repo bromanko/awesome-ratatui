@@ -24,13 +24,27 @@ def example():
 
 if __name__ == '__main__':
     data, raw = example()
-    candidate = dict(id='2', complete=True, errors=[], records=[],
-                     queries=['Fictional example: project name, old URL, proposed URL'])
+    # Show ready, duplicate-held and validation-held outcomes side by side.
+    raw['results'][1].update(action='update',newUrl='https://example.com/new-tasks')
+    data['readme'] += '- [Sample Clock](https://example.com/clock) - A terminal clock.\n'
+    data['entries'] = ci.entries(data['readme'])
+    data['readmeHash'] = hashlib.sha256(data['readme'].encode()).hexdigest()
+    raw['results'].append(dict(id='4',action='update',reason='Fictional example: suggested new clock homepage.',
+        evidence=[dict(url='https://example.com/clock',observation='Synthetic evidence; no source fetched.')],
+        limitations=[],newUrl='https://example.com/new-clock',newDescription=None))
+    duplicate='https://github.com/example/catalog/pull/123'
+    candidates=[dict(id=str(i),complete=True,errors=[],records=[],
+        queries=['Fictional example: project name, old URL, proposed URL']) for i in (2,3,4)]
+    candidates[1]['records']=[dict(html_url=duplicate,title='Fictional existing correction')]
+    reviews=[dict(id=str(i),status='clear',reason='Synthetic search: no existing correction.',references=[]) for i in (2,3,4)]
+    reviews[1].update(status='duplicate',reason='Fictional open PR already proposes this same URL correction.',references=[duplicate])
     class ExampleValidator:
         def validate(self, proposal, entry):
+            if proposal['id']=='4':
+                return dict(passed=False,reason='Simulated: proposed destination link failed; edit held.',
+                            links=dict(introduced=['https://example.com/new-clock'],preexisting=[]))
             return dict(passed=True, reason='Simulated: formatting, spelling, and destination passed; no real checks ran.',
                         links=dict(introduced=[], preexisting=['https://example.com/unrelated-outage']))
     ci.write_report(data, raw, 'unchanged', Path(sys.argv[1]), demo=True,
-                    history_packet=dict(candidates=[candidate]),
-                    history_review=dict(reviews=[dict(id='2',status='clear',reason='Synthetic search: no existing correction.',references=[])]),
-                    validator=ExampleValidator())
+                    history_packet=dict(candidates=candidates),
+                    history_review=dict(reviews=reviews),validator=ExampleValidator())
