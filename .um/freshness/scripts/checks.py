@@ -2,6 +2,7 @@
 import io
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import tarfile
@@ -48,6 +49,14 @@ def compare_links(before, after, relevant):
     unverified = set(relevant) - set(after.get('successful', []))
     return dict(passed=not (introduced or affected or unverified), unverified=sorted(unverified), introduced=sorted(introduced),
                 preexisting=sorted(inherited), affected=sorted(affected))
+
+
+def changed_urls(before, after):
+    """Require success for every destination on changed catalog lines, not just titles."""
+    import ci
+    old_lines = {entry['line'] for entry in ci.entries(before)}
+    return sorted({url.rstrip('.,;:!') for entry in ci.entries(after) if entry['line'] not in old_lines
+                   for url in re.findall(r'https?://[^\s<>()\[\]"\']+', entry['line'])})
 
 
 class Validator:
@@ -113,8 +122,7 @@ class Validator:
         try:
             before_links = links(self.before['links'],self.base)
             after_links = links(after['links'],folder)
-            old_lines = {e['line'] for e in ci.entries(self.readme)}
-            relevant = [e['url'] for e in ci.entries(changed) if e['line'] not in old_lines]
+            relevant = changed_urls(self.readme, changed)
             result['links'] = compare_links(before_links,after_links,relevant)
             result['passed'] = all(after[k]['exitCode']==0 for k in ('lint','spelling')) and result['links']['passed']
             result['reason'] = ('Checks passed; existing unrelated link failures are listed separately.' if result['passed']
