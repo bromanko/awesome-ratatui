@@ -34,10 +34,12 @@ class DiscussionTests(unittest.TestCase):
     def test_search_outage_recorded(self):
         data=dict(catalogSha='a'*40,entries=[dict(id='1',name='Example',url='https://old.example')])
         raw=dict(results=[dict(id='1',action='update',limitations=[],newUrl='https://new.example')])
-        with patch.object(history,'api',side_effect=OSError):
+        with patch.dict(history.os.environ, {'GITHUB_REPOSITORY':'bromanko/awesome-ratatui'}), patch.object(history,'api',side_effect=OSError):
             result=history.collect(data,raw)['candidates'][0]
         self.assertFalse(result['complete'])
-        self.assertEqual(len(result['queries']),3)
+        self.assertEqual(len(result['queries']),6)
+        self.assertTrue(any('repo:ratatui/awesome-ratatui' in q for q in result['queries']))
+        self.assertTrue(any('repo:bromanko/awesome-ratatui' in q for q in result['queries']))
 
     def test_truncated_search_is_not_clear(self):
         data=dict(catalogSha='a'*40,entries=[dict(id='1',name='Example',url='https://old.example')])
