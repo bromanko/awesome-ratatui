@@ -1,4 +1,6 @@
 import copy
+import sys
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "scripts"))
 import importlib.util
 from pathlib import Path
 import unittest
@@ -115,6 +117,28 @@ class PreviewTests(unittest.TestCase):
         proposals, _ = ci.previews(self.data, self.raw, 'unchanged')
         self.assertIn('-' + self.data['entries'][0]['line'], proposals[0]['patch'])
         self.assertNotIn('-' + self.data['entries'][1]['line'], proposals[0]['patch'])
+
+    def test_held_preview_never_exports_patch_and_clears_old_patch(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp)
+            (output/'entry-2.patch').write_text('old stale proposal')
+            ci.write_report(self.data,self.raw,'unchanged',output,demo=True)
+            self.assertFalse((output/'entry-2.patch').exists())
+            self.assertIn('Held',(output/'report.md').read_text())
+
+    def test_ready_preview_exports_checked_patch(self):
+        import tempfile
+        class Validator:
+            def validate(self, proposal, entry):
+                return dict(passed=True,reason='Fixture passed')
+        with tempfile.TemporaryDirectory() as tmp:
+            output=Path(tmp)
+            ci.write_report(self.data,self.raw,'unchanged',output,demo=True,
+                history_packet=dict(candidates=[dict(id='2',complete=True,errors=[],records=[],queries=[])]),
+                history_review=dict(reviews=[dict(id='2',status='clear',reason='Fixture',references=[])]),validator=Validator())
+            self.assertTrue((output/'entry-2.patch').exists())
+            self.assertIn('Ready for maintainer review',(output/'report.md').read_text())
 
 
 if __name__ == '__main__': unittest.main()

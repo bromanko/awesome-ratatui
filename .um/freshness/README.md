@@ -1,102 +1,98 @@
-# Advisory freshness review
+# Catalog freshness review
 
-This opt-in workflow investigates three catalog entries and puts an evidence-led
-report in the GitHub Actions summary. It checks whether descriptions and Ratatui/TUI
-relevance still hold. Existing lint, typo and daily link workflows remain useful;
-this investigation addresses questions they cannot answer.
+This opt-in workflow investigates a selected group of catalog entries and previews
+checked corrections in the GitHub Actions summary. It researches current relevance,
+checks prior discussions, and validates each proposed README edit in a disposable
+copy. It never opens correction PRs, comments, merges, or edits the working checkout.
 
-The workflow produces proposed README patches and PR text, without editing the
-checkout, opening PRs, commenting, submitting reviews or merging. Suggestions
-always require a maintainer. It is a manual pilot:
-no recurring schedule, coverage checkpoint or automatic advancement is installed.
+## What a run produces
 
-## Run a fork trial
+Each entry has findings, evidence URLs, unresolved questions and a recommendation.
+For each proposed correction, the summary adds:
 
-1. Review and merge this integration into the fork's default branch when ready.
-2. Configure the `awesome-ratatui-review` environment with required reviewers and
-   an `ANTHROPIC_API_KEY` environment secret.
+- Prior-discussion status, search queries, reasons and cited issues/PRs.
+- Original and edited catalog check results, with existing unrelated broken links
+  listed separately from new failures or failures affecting the changed entry.
+- Ready for maintainer review or Held, with the reason.
+- Proposed PR title/body and a diff. Only ready proposals receive downloadable patches.
+
+The `freshness-proposals` artifact contains the report, PR descriptions, available
+patches, collected discussion records and validation logs. Each proposal changes one
+entry, following the contribution guidelines. Maintainers still verify the evidence
+and decide whether to open a correction PR.
+
+## Workflow
+
+1. Capture the checked-out README, contribution rules and commit identity; select
+   a zero-based group of up to three entries.
+2. Claude investigates official documentation, manifests, workspace members and
+   legacy versions, returning structured findings and proposed corrections.
+3. Python searches upstream and the current fork by project name, old URL and
+   proposed URL. It reads likely issues/PRs, comments, reviews and changed-file patches.
+4. A second Claude step evaluates whether those records concern the same correction.
+   An open duplicate, unresolved rejection, already-merged correction or incomplete
+   investigation holds the proposal. Related discussions are linked as context.
+5. Generate each one-entry diff from the pinned entry. Apply it in a temporary copy
+   and check that the resulting diff matches. Run awesome-lint, typos and Lychee on
+   the original and edited README, using the pinned repository configuration.
+6. Recheck the current upstream README before exporting a ready patch. Changes or
+   an unavailable recheck hold it. Publish the report and downloadable files.
+
+Search caps are explicit: 30 results per query, 10 discussions per candidate,
+100 records per comments/reviews/files request (reaching that limit is treated as
+incomplete), and bounded evidence sizes. Errors or truncation never count as a clean
+search. Search is still limited by GitHub's index; it is not proof no prior discussion
+exists. A closed-unmerged PR alone is not a rejection. A prior objection may be
+considered addressed only when the history assessment explains concrete new evidence.
+History classification remains model judgment; cited references are checked against
+the collected records, but semantic correctness is not independently proven.
+
+Validation uses awesome-lint 2.3.0 with a dependency lock, typos 1.51.1 and Lychee
+0.24.2 with verified release checksums. Lint/spelling failures hold the edit. New
+link failures, failures affecting the changed entry, and excluded destinations hold
+it; unrelated failures present in both versions are reported separately. Missing
+or timed-out checkers hold the edit. Checks are bounded to 180 seconds each. Failed
+edits are withheld, without speculative automatic repair or a model retry loop.
+Validation does not prove the factual merits of a removal or replacement.
+
+## Enable a fork trial
+
+1. Review and merge the integration into the fork's default branch when ready.
+2. Configure `awesome-ratatui-review` with required reviewers and an
+   `ANTHROPIC_API_KEY` environment secret.
 3. Set repository variable `UM_FRESHNESS_ENABLED=true`.
-4. Manually run **UM freshness review** on the reviewed branch, supplying
-   a zero-based slice number. Read the research in the Actions summary.
+4. Run **UM freshness review** on a reviewed branch with the desired slice number.
 
-No fork-name restriction is imposed. The collector uses the selected checked-out
-commit for README and contribution rules, then selects consecutive groups of three
-entries. IDs are README line numbers within that pinned revision, not permanent
-project IDs. The current 586-entry snapshot has 196 slices (0 through 195); this
-flat grouping differs from the earlier experiment's 203 section-specific slices.
-Catalog changes can shift slices. Keep a manual record of reviewed entries during
-the trial; slice numbers alone do not establish continuing coverage.
+This remains a manual pilot, with no scheduler or persisted coverage. The original
+586-entry snapshot has 196 flat slices (0 through 195); catalog edits can shift
+those slices. Keep a manual record of reviewed entries during the trial.
 
-The report rechecks upstream's current README. Changed or unavailable content is
-explicitly marked. Even an unchanged catalog does not establish that project sources
-haven't changed since investigation. Failures produce a summary directing the reader
-to the failed step, rather than silently implying a successful audit.
+One GitHub job uses published UM 0.72.1, official Claude Code 2.1.284 and Sonnet 5
+at medium effort. The action is pinned to
+`3b5d29379bc349df8d95b29b599e71701aa1d017`. The history model step only runs when
+there are proposed changes to investigate. The job has a 45-minute timeout and no
+dollar cap. Provider usage is billable once enabled.
 
-## Implementation
+GitHub permissions are read-only. Checkout does not persist credentials. The provider
+key is passed only to agent steps; the GitHub token goes to collection and validation.
+Agent tools remain available, with instructions prohibiting external writes and
+execution of project code. Those instructions are not an execution sandbox.
 
-One GitHub job prepares a commit-pinned packet, invokes the published UM run action,
-and renders the structured export. Python only selects entries, checks output
-consistency and renders the report. Claude owns research into official project docs,
-workspace members, optional tools and legacy branches. Citations are agent-reported
-observations, not independently verified facts. Uncertainty is visible in the report.
+## Check and preview the integration
 
-Runtime matches the reviewed awesome-testing integration: UM 0.72.1, official
-Claude Code 2.1.284, Sonnet 5 at medium effort, and run-action commit
-`3b5d29379bc349df8d95b29b599e71701aa1d017`. Explicit UM version selection avoids the
-older action default that failed on Claude ToolSearch responses. The native installer
-is used without a wrapper or custom tool restrictions. The job timeout is 30 minutes;
-there is no dollar cap. Provider usage is billable once enabled.
-
-The Anthropic key is passed to the model step. The read-only GitHub token is passed
-only to the final catalog recheck; checkout does not persist credentials. Normal
-agent tools are available. Instructions prohibit external changes and executing
-project code; those instructions are not an execution sandbox. Enable only reviewed
-workflow branches and use environment review for the trial.
-
-## Evidence and limits
-
-The earlier local prototype recovered a known Yardlet removal, kept selected control
-projects, and held a potentially mistaken Burn removal. Its 14 tests and roughly
-$0.23 experimental cost describe that older constrained implementation. They do not
-validate this agent-led integration, its accuracy, or its costs. No accuracy or time
-savings claim is made here.
-
-The Burn case informs a general research rule: a framework's root README/manifest
-can omit its Ratatui tools and workspace dependencies. Absence from those excerpts
-is not sufficient evidence for removal. Low activity, archival, non-Rust language
-and temporary access failures likewise do not establish loss of relevance.
-
-Before scheduling, inspect real reports across ordinary controls and ambiguous
-cases, measure usefulness and unsupported claims, and choose revisit latency.
-Preserve unseen evaluation cases rather than tuning repeatedly to familiar outcomes.
-A recurring successor needs a coverage/resume policy for failures and catalog changes.
-
-## Validation
+The **Check UM freshness integration** PR check runs offline tests, exercises the
+real validation tools on an intentionally invalid fixture, and renders a clearly
+labeled fictional preview. The preview's simulated checks are not live findings.
+Download `freshness-example` to inspect its example patch and PR description.
 
 ```sh
 python3 -m unittest discover -s .um/freshness/tests -v
 um workflow validate --source-root .um/freshness --json .um/freshness/workflow.yaml
+um workflow validate --source-root .um/freshness --json .um/freshness/history.yaml
 actionlint .github/workflows/um-freshness.yml .github/workflows/um-freshness-checks.yml
 ```
 
-Local tests, configuration validation and actual-catalog packet preparation pass.
-No paid model call or GitHub-hosted run has been made for this integration. A live
-fork trial remains necessary after review and explicit enablement.
-
-## Preview proposed changes on GitHub
-
-Open the Actions run summary to see each suggested change's PR title/body and
-README diff. Download `freshness-proposals` from the run's Artifacts section for
-`report.md`, one `.patch` per proposal and its corresponding PR description.
-Each proposal changes one entry, following the contribution guidelines.
-
-A changed or unverifiable catalog, or unresolved questions on a recommendation,
-withholds its patch. Keep/uncertain decisions produce research only. Patches are
-constructed from the exact pinned entry; no model-generated arbitrary diff is
-applied. The preview does not certify factual accuracy or run the full upstream
-lint/link checks. A maintainer must verify it before opening a correction PR.
-
-The **Check UM freshness integration** PR check also renders an **Example preview**
-using fictional entries and `example.com` URLs. Its summary and downloadable
-`freshness-example` show the output format without secrets, model calls or external
-research. This is a rendering/integration demonstration, not a live audit result.
+The earlier local prototype's Yardlet result, Burn false-alarm risk, 14 tests and
+roughly $0.23 cost apply to a different implementation. They do not establish this
+workflow's accuracy, cost or time savings. No live model audit has been performed
+for this revision. A prospective fork trial remains necessary before scheduling.

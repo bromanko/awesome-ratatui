@@ -10,7 +10,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -20,6 +20,10 @@ jobs:
           python-version: '3.12'
       - name: Offline checks
         run: python3 -m unittest discover -s .um/freshness/tests -v
+      - name: Install validation tools
+        run: bash .um/freshness/checks/install.sh
+      - name: Exercise real validation tools
+        run: python3 .um/freshness/tests/check_tools.py
       - name: Render example preview
         run: |
           python3 .um/freshness/tests/preview_example.py "$RUNNER_TEMP/freshness-example"

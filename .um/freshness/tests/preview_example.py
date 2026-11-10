@@ -24,4 +24,13 @@ def example():
 
 if __name__ == '__main__':
     data, raw = example()
-    ci.write_report(data, raw, 'unchanged', Path(sys.argv[1]), demo=True)
+    candidate = dict(id='2', complete=True, errors=[], records=[],
+                     queries=['Fictional example: project name, old URL, proposed URL'])
+    class ExampleValidator:
+        def validate(self, proposal, entry):
+            return dict(passed=True, reason='Simulated: formatting, spelling, and destination passed; no real checks ran.',
+                        links=dict(introduced=[], preexisting=['https://example.com/unrelated-outage']))
+    ci.write_report(data, raw, 'unchanged', Path(sys.argv[1]), demo=True,
+                    history_packet=dict(candidates=[candidate]),
+                    history_review=dict(reviews=[dict(id='2',status='clear',reason='Synthetic search: no existing correction.',references=[])]),
+                    validator=ExampleValidator())

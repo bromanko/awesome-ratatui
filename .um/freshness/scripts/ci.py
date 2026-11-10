@@ -6,6 +6,9 @@ import difflib
 import hashlib
 import html
 import json
+import os
+import history
+import checks
 from pathlib import Path
 import re
 import subprocess
@@ -163,13 +166,13 @@ def previews(data, raw, status):
                 '\n'.join(source['url'] + ' — ' + source['observation'] for source in row['evidence']) +
                 f"\n\nBased on catalog revision {data['catalogSha']}.\n"
                 'Proposed by an automated freshness review. A maintainer must verify the evidence and edit.\n'
-                'This preview has not run the full catalog lint or link checks.\n')
+                'Validation and discussion checks are recorded below.\n')
         proposals.append(dict(id=entry['id'], title=title, body=body, patch=diff))
     note = f'{len(proposals)} proposed change(s); {held} held for unresolved questions.'
     return proposals, note
 
 
-def write_report(data, raw, status, output, demo=False):
+def write_report(data, raw, status, output, demo=False, history_packet=None, history_review=None, validator=None):
     report = render(data, raw, status)
     proposals, note = previews(data, raw, status)
     if demo:
@@ -179,9 +182,33 @@ def write_report(data, raw, status, output, demo=False):
     # Clear previous proposals so retries cannot publish obsolete artifacts.
     for old in output.glob('entry-*.*'):
         old.unlink()
+    candidates = {c['id']: c for c in (history_packet or {}).get('candidates', [])}
+    reviews = {c['id']: c for c in (history_review or {}).get('reviews', [])}
+    rows = {e['id']: e for e in data['entries']}
+    if len(reviews) != len((history_review or {}).get('reviews', [])):
+        raise ValueError('Duplicate history assessment ids')
     for proposal in proposals:
+        candidate = candidates.get(proposal['id'])
+        allowed, history_note = (history.gate(candidate, reviews.get(proposal['id'])) if candidate
+                                 else (False, 'History check not performed.'))
+        validation = (validator.validate(proposal, rows[proposal['id']]) if allowed and validator
+                      else dict(passed=False, reason='Validation not run; history review must pass first.'))
+        ready = allowed and validation['passed']
+        if ready and not demo and freshness(data) != 'unchanged':
+            ready = False
+            validation.update(passed=False, reason='Catalog changed or could not be rechecked after validation.')
+        details = dict(history=candidate, assessment=reviews.get(proposal['id']), validation=validation)
+        (output / ('entry-' + proposal['id'] + '.checks.json')).write_text(json.dumps(details,indent=2)+'\n')
+        proposal['body'] += ('\nReview status: ' + ('Ready for maintainer review' if ready else 'Held') +
+                             '\nPrior discussion: ' + history_note + '\nValidation: ' + validation['reason'] + '\n')
+        report += '\n### ' + ('Ready for maintainer review' if ready else 'Held') + '\n'
+        report += '<pre>' + html.escape(history_note + '\n' + json.dumps(validation,indent=2)) + '</pre>\n'
+        if candidate:
+            report += '<pre>' + html.escape('Searches:\n' + '\n'.join(candidate['queries']) +
+                        '\nReferences:\n' + '\n'.join((reviews.get(proposal['id']) or {}).get('references',[]))) + '</pre>\n'
         stem = 'entry-' + proposal['id']
-        (output / (stem + '.patch')).write_text(proposal['patch'])
+        if ready:
+            (output / (stem + '.patch')).write_text(proposal['patch'])
         (output / (stem + '.md')).write_text('# ' + proposal['title'] + '\n\n' + proposal['body'])
         report += ('\n## ' + stem + '\n\n<pre>' + html.escape(proposal['title'] + '\n\n' + proposal['body']) + '</pre>\n\n')
         # A fence longer than any run of backticks keeps all patch text literal.
@@ -201,6 +228,13 @@ def main():
     post.add_argument('--input-dir', type=Path, required=True)
     post.add_argument('--assessment', type=Path, required=True)
     post.add_argument('--output', type=Path, required=True)
+    post.add_argument('--repo', type=Path, required=True)
+    post.add_argument('--history-packet', type=Path, required=True)
+    post.add_argument('--history-review', type=Path)
+    prior = subs.add_parser('history')
+    prior.add_argument('--input-dir', type=Path, required=True)
+    prior.add_argument('--assessment', type=Path, required=True)
+    prior.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
     if args.command == 'prepare':
         data = packet(args.repo, args.slice)
@@ -215,7 +249,28 @@ def main():
         if args.assessment.stat().st_size > 65536:
             raise ValueError('Assessment exceeds 64 KiB')
         raw = json.loads(args.assessment.read_text())
-        write_report(data, raw, freshness(data), args.output)
+        validate(data, raw)
+        if args.command == 'history':
+            collected = history.collect(data, raw)
+            args.output.mkdir(parents=True,exist_ok=True)
+            collected['assessment'] = raw
+            (args.output / 'packet.json').write_text(json.dumps(collected,indent=2)+'\n')
+            if os.environ.get('GITHUB_OUTPUT'):
+                with open(os.environ['GITHUB_OUTPUT'],'a') as target:
+                    target.write('has_candidates=' + str(bool(collected['candidates'])).lower() + '\n')
+        else:
+            collected = json.loads(args.history_packet.read_text())
+            if collected.get('catalogSha') != data['catalogSha'] or collected.get('assessment') != raw:
+                raise ValueError('History evidence does not match this assessment/snapshot')
+            reviewed = json.loads(args.history_review.read_text()) if args.history_review else None
+            if reviewed and {x['id'] for x in reviewed['reviews']} != {x['id'] for x in collected['candidates']}:
+                raise ValueError('History assessment must cover every candidate exactly once')
+            validator = checks.Validator(args.repo,data['catalogSha'],data['readme'],args.output)
+            try:
+                write_report(data, raw, freshness(data), args.output, history_packet=collected,
+                             history_review=reviewed, validator=validator)
+            finally:
+                validator.close()
 
 
 if __name__ == '__main__':
