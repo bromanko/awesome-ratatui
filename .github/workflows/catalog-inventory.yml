@@ -1,0 +1,27 @@
+name: Catalog review inventory
+on:
+  push:
+    branches: [codex/catalog-inventory-preview]
+    paths:
+      - .um/catalog-inventory/**
+      - .github/workflows/catalog-inventory.yml
+permissions:
+  contents: read
+jobs:
+  inventory:
+    name: Full catalog review inventory
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Display all 39 review items
+        run: cat .um/catalog-inventory/report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Save inventory and source findings
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: full-catalog-review-inventory
+          path: .um/catalog-inventory/
+          if-no-files-found: error
+          retention-days: 90
