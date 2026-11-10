@@ -13,7 +13,7 @@ def run(command, cwd, env, timeout=180):
         result = subprocess.run(command, cwd=cwd, env=env, text=True, capture_output=True, timeout=timeout)
         return dict(exitCode=result.returncode, stdout=result.stdout, stderr=result.stderr)
     except (OSError, subprocess.TimeoutExpired) as error:
-        return dict(exitCode=-1, stdout='', stderr=type(error).__name__)
+        return dict(exitCode=-1, stdout='', stderr=type(error).__name__ + ': ' + str(error))
 
 
 def links(result, root):
