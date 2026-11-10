@@ -58,8 +58,31 @@ class ValidationTests(unittest.TestCase):
 
     def test_new_failure_and_affected_old_failure_block(self):
         after=dict(errors=['https://changed.example'],excluded=[])
-        self.assertFalse(checks.compare_links(dict(errors=[]),after,[])['passed'])
+        self.assertFalse(checks.compare_links(dict(errors=[]),after,after['errors'])['passed'])
         self.assertFalse(checks.compare_links(dict(errors=after['errors']),after,after['errors'])['passed'])
+
+    def test_unrelated_external_fluctuation_is_reported_without_blocking(self):
+        after=dict(errors=['https://unrelated.example'],excluded=[],successful=['https://changed.example'])
+        result=checks.compare_links(dict(errors=[]),after,['https://changed.example'])
+        self.assertTrue(result['passed'])
+        self.assertEqual(result['introduced'],[])
+        self.assertEqual(result['unrelatedFluctuations'],['https://unrelated.example/'])
+
+    def test_changed_companion_still_blocks_when_primary_passes(self):
+        after=dict(errors=['https://companion.example'],excluded=[],successful=['https://changed.example'])
+        result=checks.compare_links(dict(errors=[]),after,['https://changed.example','https://companion.example'])
+        self.assertFalse(result['passed'])
+        self.assertEqual(result['unrelatedFluctuations'],[])
+        self.assertEqual(result['affected'],['https://companion.example/'])
+
+    def test_new_local_relative_or_unknown_scheme_failure_still_blocks(self):
+        for url in ['file://CATALOG/missing.md','missing.md','error:unknown']:
+            with self.subTest(url=url):
+                after=dict(errors=[url],excluded=[],successful=['https://changed.example'])
+                result=checks.compare_links(dict(errors=[]),after,['https://changed.example'])
+                self.assertFalse(result['passed'])
+                self.assertEqual(result['unrelatedFluctuations'],[])
+                self.assertTrue(result['introduced'])
 
     def test_ignored_destination_is_not_a_pass(self):
         self.assertFalse(checks.compare_links(dict(errors=[]),dict(errors=[],excluded=['https://changed.example']),['https://changed.example'])['passed'])

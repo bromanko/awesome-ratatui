@@ -44,11 +44,14 @@ def compare_links(before, after, relevant):
     after = {key: [normalized_url(url) for url in urls] for key, urls in after.items() if isinstance(urls,list)}
     relevant = [normalized_url(url) for url in relevant]
     inherited = set(before['errors']) & set(after['errors'])
-    introduced = set(after['errors']) - set(before['errors'])
+    newly_failed = set(after['errors']) - set(before['errors'])
+    # Exact one-entry patches cannot cause an unchanged external website to fail.
+    unrelated = {url for url in newly_failed if url not in relevant and urlsplit(url).scheme in {'http', 'https'}}
+    introduced = newly_failed - unrelated
     affected = set(relevant) & (set(after['errors']) | set(after['excluded']))
     unverified = set(relevant) - set(after.get('successful', []))
     return dict(passed=not (introduced or affected or unverified), unverified=sorted(unverified), introduced=sorted(introduced),
-                preexisting=sorted(inherited), affected=sorted(affected))
+                preexisting=sorted(inherited), affected=sorted(affected), unrelatedFluctuations=sorted(unrelated))
 
 
 def changed_urls(before, after):
