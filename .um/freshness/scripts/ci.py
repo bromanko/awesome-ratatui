@@ -146,7 +146,7 @@ def previews(data, raw, status):
             del lines[offset]
         else:
             name = row['newName'] if row['newName'] is not None else entry['name']
-            if row['newName'] is not None and (not name.strip() or name != name.strip() or any(c in name for c in '[]()<>\r\n\t')):
+            if row['newName'] is not None and (not name.strip() or name != name.strip() or any(c in name for c in '[]<>') or any(ord(c) < 32 or ord(c) == 127 for c in name)):
                 raise ValueError('Invalid entry name')
             url = row['newUrl'] if row['newUrl'] is not None else entry['url']
             description = row['newDescription'] if row['newDescription'] is not None else entry['description']

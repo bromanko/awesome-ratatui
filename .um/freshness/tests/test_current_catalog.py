@@ -33,3 +33,16 @@ class CurrentCatalogTests(unittest.TestCase):
                 row=dict(id=entry['id'],action='update',reason='Fixture.',evidence=[dict(url='https://example.com',observation='Fixture.')],limitations=[],blockers=[],newName=None,newUrl='https://changed.example',newDescription=None)
                 row[key]=value
                 with self.assertRaises(ValueError):ci.previews(data,dict(results=[row]),'unchanged')
+
+    def test_new_parenthesized_name_is_valid_markdown_label(self):
+        text='# Tools\n- [AVD](https://example.com) - Description.\n'
+        entry=ci.entries(text)[0]
+        data=dict(catalogSha='a'*40,readme=text,readmeHash=hashlib.sha256(text.encode()).hexdigest(),entries=[entry])
+        row=dict(id=entry['id'],action='update',reason='Official name.',evidence=[dict(url='https://example.com',observation='Official name.')],limitations=[],blockers=[],newName='Arista AVD (Architect, Validate, Deploy)',newUrl=None,newDescription=None)
+        proposals,_=ci.previews(data,dict(results=[row]),'unchanged')
+        expected=text.replace('[AVD]','[Arista AVD (Architect, Validate, Deploy)]')
+        self.assertEqual(proposals[0]['patch'],ci.patch_text(text,expected))
+        for invalid in ['Bad[Label]','Bad<Label>','Bad\x00Name','Bad\x7fName']:
+            row['newName']=invalid
+            with self.subTest(name=invalid),self.assertRaises(ValueError):
+                ci.previews(data,dict(results=[row]),'unchanged')
