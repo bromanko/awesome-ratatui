@@ -65,4 +65,56 @@ class FreshnessTests(unittest.TestCase):
             self.assertTrue(ci.freshness(self.data).startswith('changed'))
 
 
+
+class PreviewTests(unittest.TestCase):
+    def setUp(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent))
+        from preview_example import example
+        self.data, self.raw = example()
+
+    def test_patch_applies_and_preserves_other_entries(self):
+        import subprocess
+        import tempfile
+        proposals, _ = ci.previews(self.data, self.raw, 'unchanged')
+        self.assertEqual(len(proposals), 1)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'README.md').write_text(self.data['readme'])
+            (root / 'change.patch').write_text(proposals[0]['patch'])
+            subprocess.run(['git', 'apply', '--check', 'change.patch'], cwd=root, check=True)
+            subprocess.run(['git', 'apply', 'change.patch'], cwd=root, check=True)
+            self.assertEqual((root / 'README.md').read_text(), self.data['readme'].replace(
+                '](https://example.com/notes)', '](https://example.com/terminal-notes)'))
+
+    def test_stale_and_unknown_catalog_withhold_patch(self):
+        for status in ['changed', 'unverified']:
+            self.assertEqual(ci.previews(self.data, self.raw, status)[0], [])
+
+    def test_limitations_withhold_patch(self):
+        self.raw['results'][0]['limitations'] = ['Destination ownership unclear.']
+        self.assertEqual(ci.previews(self.data, self.raw, 'unchanged')[0], [])
+
+    def test_keep_produces_no_patch(self):
+        row = self.raw['results'][0]
+        row.update(action='keep', newUrl=None)
+        self.assertEqual(ci.previews(self.data, self.raw, 'unchanged')[0], [])
+
+    def test_mismatched_line_and_hash_rejected(self):
+        self.data['entries'][0]['line'] = 'wrong'
+        with self.assertRaises(ValueError): ci.previews(self.data, self.raw, 'unchanged')
+        self.data['readmeHash'] = 'wrong'
+        with self.assertRaises(ValueError): ci.previews(self.data, self.raw, 'unchanged')
+
+    def test_multiline_description_rejected(self):
+        self.raw['results'][0]['newDescription'] = 'Text.\n- Injected entry'
+        with self.assertRaises(ValueError): ci.previews(self.data, self.raw, 'unchanged')
+
+    def test_removal_changes_one_entry(self):
+        self.raw['results'][0].update(action='remove', newUrl=None)
+        proposals, _ = ci.previews(self.data, self.raw, 'unchanged')
+        self.assertIn('-' + self.data['entries'][0]['line'], proposals[0]['patch'])
+        self.assertNotIn('-' + self.data['entries'][1]['line'], proposals[0]['patch'])
+
+
 if __name__ == '__main__': unittest.main()

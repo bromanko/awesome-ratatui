@@ -2,6 +2,7 @@
 """Select a pinned catalog slice and render an advisory report. No GitHub writes."""
 import argparse
 import base64
+import difflib
 import hashlib
 import html
 import json
@@ -118,6 +119,77 @@ def render(data, raw, status):
     return '\n'.join(lines)
 
 
+
+def previews(data, raw, status):
+    """Build one reviewable proposal per entry; never alter the checkout."""
+    results = validate(data, raw)
+    if status != 'unchanged':
+        return [], 'Preview withheld: catalog freshness could not be confirmed.'
+    readme = data['readme']
+    if hashlib.sha256(readme.encode()).hexdigest() != data['readmeHash']:
+        raise ValueError('Catalog content/hash mismatch')
+    selected = {entry['id']: entry for entry in data['entries']}
+    proposals = []
+    held = 0
+    for row in results:
+        if row['action'] not in {'update', 'replace', 'remove'}:
+            continue
+        if row['limitations']:
+            held += 1
+            continue
+        entry = selected[row['id']]
+        lines = readme.splitlines(keepends=True)
+        offset = int(entry['id']) - 1
+        if offset < 0 or offset >= len(lines) or lines[offset].rstrip('\r\n') != entry['line']:
+            raise ValueError('Selected entry no longer matches its pinned line')
+        if row['action'] == 'remove':
+            del lines[offset]
+        else:
+            url = row['newUrl'] or entry['url']
+            description = row['newDescription'] or entry['description']
+            if any(c in url for c in '()<>\r\n') or any(c in description for c in '\r\n'):
+                raise ValueError('Correction must be a single well-formed Markdown entry')
+            if not description.strip() or description != description.strip():
+                raise ValueError('Correction description must be nonempty and trimmed')
+            ending = '\r\n' if lines[offset].endswith('\r\n') else '\n' if lines[offset].endswith('\n') else ''
+            lines[offset] = f"- [{entry['name']}]({url}) - {description}" + ending
+        updated = ''.join(lines)
+        if updated == readme:
+            continue
+        diff = ''.join(difflib.unified_diff(readme.splitlines(keepends=True),
+                       updated.splitlines(keepends=True), fromfile='a/README.md', tofile='b/README.md'))
+        title = f"{row['action'].capitalize()} {entry['name']} entry"
+        body = (row['reason'] + '\n\nEvidence:\n' +
+                '\n'.join(source['url'] + ' — ' + source['observation'] for source in row['evidence']) +
+                f"\n\nBased on catalog revision {data['catalogSha']}.\n"
+                'Proposed by an automated freshness review. A maintainer must verify the evidence and edit.\n'
+                'This preview has not run the full catalog lint or link checks.\n')
+        proposals.append(dict(id=entry['id'], title=title, body=body, patch=diff))
+    note = f'{len(proposals)} proposed change(s); {held} held for unresolved questions.'
+    return proposals, note
+
+
+def write_report(data, raw, status, output, demo=False):
+    report = render(data, raw, status)
+    proposals, note = previews(data, raw, status)
+    if demo:
+        report = '# Example preview — synthetic test data\n\nNot a live finding or a proposed change to the real catalog.\n\n' + report
+    report += '\n\n# Proposed pull requests\n\n' + note + '\n'
+    output.mkdir(parents=True, exist_ok=True)
+    # Clear previous proposals so retries cannot publish obsolete artifacts.
+    for old in output.glob('entry-*.*'):
+        old.unlink()
+    for proposal in proposals:
+        stem = 'entry-' + proposal['id']
+        (output / (stem + '.patch')).write_text(proposal['patch'])
+        (output / (stem + '.md')).write_text('# ' + proposal['title'] + '\n\n' + proposal['body'])
+        report += ('\n## ' + stem + '\n\n<pre>' + html.escape(proposal['title'] + '\n\n' + proposal['body']) + '</pre>\n\n')
+        # A fence longer than any run of backticks keeps all patch text literal.
+        fence = '`' * max(3, 1 + max([len(x) for x in re.findall(r'`+', proposal['patch'])] or [0]))
+        report += fence + 'diff\n' + proposal['patch'] + fence + '\n'
+    (output / 'report.md').write_text(report)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     subs = parser.add_subparsers(dest='command', required=True)
@@ -143,9 +215,7 @@ def main():
         if args.assessment.stat().st_size > 65536:
             raise ValueError('Assessment exceeds 64 KiB')
         raw = json.loads(args.assessment.read_text())
-        report = render(data, raw, freshness(data))
-        args.output.mkdir(parents=True, exist_ok=True)
-        (args.output / 'report.md').write_text(report)
+        write_report(data, raw, freshness(data), args.output)
 
 
 if __name__ == '__main__':

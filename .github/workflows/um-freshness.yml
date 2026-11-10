@@ -69,3 +69,11 @@ jobs:
           else
             printf '%s\n' '## UM freshness review' 'No report was produced. Check the run steps for details.' >> "$GITHUB_STEP_SUMMARY"
           fi
+      - name: Save proposed changes
+        if: steps.um.outputs.export-state == 'available'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: freshness-proposals
+          path: ${{ runner.temp }}/um-freshness-report/
+          if-no-files-found: error
+          retention-days: 14

@@ -20,3 +20,13 @@ jobs:
           python-version: '3.12'
       - name: Offline checks
         run: python3 -m unittest discover -s .um/freshness/tests -v
+      - name: Render example preview
+        run: |
+          python3 .um/freshness/tests/preview_example.py "$RUNNER_TEMP/freshness-example"
+          cat "$RUNNER_TEMP/freshness-example/report.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Save example proposals
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: freshness-example
+          path: ${{ runner.temp }}/freshness-example/
+          retention-days: 14

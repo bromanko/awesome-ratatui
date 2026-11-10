@@ -5,8 +5,9 @@ report in the GitHub Actions summary. It checks whether descriptions and Ratatui
 relevance still hold. Existing lint, typo and daily link workflows remain useful;
 this investigation addresses questions they cannot answer.
 
-The workflow does not edit the catalog, generate patches, open PRs, comment, submit
-reviews or merge. Suggestions always require a maintainer. It is a manual pilot:
+The workflow produces proposed README patches and PR text, without editing the
+checkout, opening PRs, commenting, submitting reviews or merging. Suggestions
+always require a maintainer. It is a manual pilot:
 no recurring schedule, coverage checkpoint or automatic advancement is installed.
 
 ## Run a fork trial
@@ -81,3 +82,21 @@ actionlint .github/workflows/um-freshness.yml .github/workflows/um-freshness-che
 Local tests, configuration validation and actual-catalog packet preparation pass.
 No paid model call or GitHub-hosted run has been made for this integration. A live
 fork trial remains necessary after review and explicit enablement.
+
+## Preview proposed changes on GitHub
+
+Open the Actions run summary to see each suggested change's PR title/body and
+README diff. Download `freshness-proposals` from the run's Artifacts section for
+`report.md`, one `.patch` per proposal and its corresponding PR description.
+Each proposal changes one entry, following the contribution guidelines.
+
+A changed or unverifiable catalog, or unresolved questions on a recommendation,
+withholds its patch. Keep/uncertain decisions produce research only. Patches are
+constructed from the exact pinned entry; no model-generated arbitrary diff is
+applied. The preview does not certify factual accuracy or run the full upstream
+lint/link checks. A maintainer must verify it before opening a correction PR.
+
+The **Check UM freshness integration** PR check also renders an **Example preview**
+using fictional entries and `example.com` URLs. Its summary and downloadable
+`freshness-example` show the output format without secrets, model calls or external
+research. This is a rendering/integration demonstration, not a live audit result.
